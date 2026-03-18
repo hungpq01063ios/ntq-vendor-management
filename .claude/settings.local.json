@@ -3,7 +3,10 @@
     "allow": [
       "Bash(npx:*)",
       "Bash(cp:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(openssl rand:*)",
+      "Bash(ls:*)",
+      "Bash(npm run:*)"
     ]
   }
 }

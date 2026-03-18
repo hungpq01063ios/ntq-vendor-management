@@ -1,0 +1,309 @@
+// prisma/schema.prisma
+// NTQ Vendor Management System — Phase 1
+// Last updated: 2026-03-17
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── AUTH ─────────────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      UserRole @default(VENDOR_PIC)
+  password  String   // hashed with bcrypt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  createdVendors   Vendor[]
+  createdPersonnel Personnel[]
+  createdProjects  Project[]
+  rateAlerts       RateAlert[]
+  rateNormEdits    RateNorm[]
+  configEdits      SystemConfig[]
+}
+
+enum UserRole {
+  DU_LEADER
+  VENDOR_PIC
+}
+
+// ─── RATE TAXONOMY (Master lookup tables) ─────────────────────────────────────
+
+model JobType {
+  id                   String                @id @default(cuid())
+  name                 String                @unique
+  order                Int                   @default(0)
+  personnel            Personnel[]
+  rateNorms            RateNorm[]
+  projectRateOverrides ProjectRateOverride[]
+  rateAlerts           RateAlert[]
+}
+
+model TechStack {
+  id                   String                @id @default(cuid())
+  name                 String                @unique
+  order                Int                   @default(0)
+  personnel            Personnel[]
+  rateNorms            RateNorm[]
+  projectRateOverrides ProjectRateOverride[]
+  rateAlerts           RateAlert[]
+}
+
+model Level {
+  id                   String                @id @default(cuid())
+  name                 String                @unique
+  order                Int
+  personnel            Personnel[]
+  rateNorms            RateNorm[]
+  projectRateOverrides ProjectRateOverride[]
+  rateAlerts           RateAlert[]
+}
+
+model Domain {
+  id                   String                @id @default(cuid())
+  name                 String                @unique
+  order                Int                   @default(0)
+  personnel            Personnel[]
+  rateNorms            RateNorm[]
+  projectRateOverrides ProjectRateOverride[]
+}
+
+// ─── RATE ENGINE ──────────────────────────────────────────────────────────────
+
+model RateNorm {
+  id          String   @id @default(cuid())
+  jobTypeId   String
+  techStackId String
+  levelId     String
+  domainId    String
+  market      Market   @default(ENGLISH)
+
+  rateMin  Float
+  rateNorm Float
+  rateMax  Float
+
+  effectiveDate DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  createdById   String
+
+  jobType   JobType   @relation(fields: [jobTypeId], references: [id])
+  techStack TechStack @relation(fields: [techStackId], references: [id])
+  level     Level     @relation(fields: [levelId], references: [id])
+  domain    Domain    @relation(fields: [domainId], references: [id])
+  createdBy User      @relation(fields: [createdById], references: [id])
+
+  @@unique([jobTypeId, techStackId, levelId, domainId, market])
+  @@index([market])
+}
+
+model SystemConfig {
+  id          String    @id @default(cuid())
+  key         ConfigKey @unique
+  value       String
+  updatedAt   DateTime  @updatedAt
+  updatedById String
+
+  updatedBy User @relation(fields: [updatedById], references: [id])
+}
+
+enum ConfigKey {
+  OVERHEAD_RATE_PCT
+  MARKET_RATE_FACTOR_PCT
+  DRIFT_ALERT_THRESHOLD_PCT
+}
+
+model ProjectRateOverride {
+  id          String @id @default(cuid())
+  projectId   String
+  jobTypeId   String
+  techStackId String
+  levelId     String
+  domainId    String
+
+  customBillingRate Float
+  setById           String
+  setAt             DateTime @default(now())
+
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  jobType   JobType   @relation(fields: [jobTypeId], references: [id])
+  techStack TechStack @relation(fields: [techStackId], references: [id])
+  level     Level     @relation(fields: [levelId], references: [id])
+  domain    Domain    @relation(fields: [domainId], references: [id])
+
+  @@unique([projectId, jobTypeId, techStackId, levelId, domainId])
+}
+
+model RateAlert {
+  id          String @id @default(cuid())
+  jobTypeId   String
+  techStackId String
+  levelId     String
+
+  normRate              Float
+  actualAvgVendorRate   Float
+  driftPct              Float
+
+  triggeredById String
+  triggeredAt   DateTime    @default(now())
+  status        AlertStatus @default(PENDING)
+  note          String?
+
+  jobType     JobType   @relation(fields: [jobTypeId], references: [id])
+  techStack   TechStack @relation(fields: [techStackId], references: [id])
+  level       Level     @relation(fields: [levelId], references: [id])
+  triggeredBy User      @relation(fields: [triggeredById], references: [id])
+}
+
+enum AlertStatus {
+  PENDING
+  FLAGGED_FOR_DU_LEADER
+  RESOLVED
+  DISMISSED
+}
+
+// ─── CORE ENTITIES ────────────────────────────────────────────────────────────
+
+model Vendor {
+  id               String       @id @default(cuid())
+  name             String
+  contactName      String
+  contactEmail     String
+  contactPhone     String?
+  companySize      Int?
+  market           Market       @default(ENGLISH)
+  languageStrength String[]
+  status           VendorStatus @default(ACTIVE)
+  startDate        DateTime?
+  notes            String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  createdById      String
+
+  createdBy User        @relation(fields: [createdById], references: [id])
+  personnel Personnel[]
+}
+
+enum VendorStatus {
+  ACTIVE
+  INACTIVE
+  ON_HOLD
+}
+
+enum Market {
+  ENGLISH
+  JAPAN
+  KOREA
+  OTHER
+}
+
+model Personnel {
+  id               String          @id @default(cuid())
+  vendorId         String
+  fullName         String
+  jobTypeId        String
+  techStackId      String
+  levelId          String
+  domainId         String
+  englishLevel     EnglishLevel    @default(INTERMEDIATE)
+  leadership       Boolean         @default(false)
+  leadershipNote   String?
+  vendorRateActual Float?
+  status           PersonnelStatus @default(AVAILABLE)
+  interviewStatus  InterviewStatus @default(NEW)
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  createdById      String
+
+  vendor      Vendor       @relation(fields: [vendorId], references: [id])
+  jobType     JobType      @relation(fields: [jobTypeId], references: [id])
+  techStack   TechStack    @relation(fields: [techStackId], references: [id])
+  level       Level        @relation(fields: [levelId], references: [id])
+  domain      Domain       @relation(fields: [domainId], references: [id])
+  createdBy   User         @relation(fields: [createdById], references: [id])
+  assignments Assignment[]
+}
+
+enum EnglishLevel {
+  BASIC
+  INTERMEDIATE
+  ADVANCED
+  FLUENT
+}
+
+enum PersonnelStatus {
+  AVAILABLE
+  ON_PROJECT
+  ENDED
+}
+
+enum InterviewStatus {
+  NEW
+  SCREENING
+  TECHNICAL_TEST
+  INTERVIEW
+  PASSED
+  FAILED
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  name        String
+  market      Market        @default(ENGLISH)
+  clientName  String
+  startDate   DateTime
+  endDate     DateTime?
+  status      ProjectStatus @default(ACTIVE)
+  notes       String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  createdById String
+
+  createdBy     User                  @relation(fields: [createdById], references: [id])
+  assignments   Assignment[]
+  rateOverrides ProjectRateOverride[]
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ON_HOLD
+  ENDED
+}
+
+model Assignment {
+  id            String @id @default(cuid())
+  personnelId   String
+  projectId     String
+  roleInProject String?
+
+  billingRateOverride Float?
+  billingRateNote     String?
+  vendorRateOverride  Float?
+
+  startDate DateTime
+  endDate   DateTime?
+  status    AssignmentStatus @default(ACTIVE)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  personnel Personnel @relation(fields: [personnelId], references: [id])
+  project   Project   @relation(fields: [projectId], references: [id])
+
+  @@index([projectId])
+  @@index([personnelId])
+}
+
+enum AssignmentStatus {
+  ACTIVE
+  ENDED
+}
