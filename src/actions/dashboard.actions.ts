@@ -3,6 +3,8 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { calculateAssignmentRates, type RateConfig } from "@/lib/rate-engine";
+import type { Prisma } from "@prisma/client";
+
 
 export interface ProjectBreakdownItem {
   projectId: string;
@@ -101,7 +103,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     normKeySet.size > 0
       ? db.rateNorm.findMany({
           where: {
-            OR: [...normKeySet].map((k) => {
+            OR: [...normKeySet].map((k: string) => {
               const [jobTypeId, techStackId, levelId, domainId, market] =
                 k.split("|");
               return {
@@ -200,7 +202,7 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   const projectBreakdown: ProjectBreakdownItem[] = [
     ...projectMap.values(),
-  ].map((p) => ({
+  ].map((p: ProjectAgg) => ({
     ...p,
     margin: p.revenue - p.cost,
     marginPct: p.revenue > 0 ? (p.revenue - p.cost) / p.revenue : 0,
@@ -234,7 +236,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     },
     projectBreakdown,
     vendorBreakdown,
-    recentAlerts: recentAlerts.map((a) => ({
+    recentAlerts: recentAlerts.map((a: Prisma.RateAlertGetPayload<{ include: { jobType: true; techStack: true; level: true } }>) => ({
       id: a.id,
       jobType: { name: a.jobType.name },
       techStack: { name: a.techStack.name },
