@@ -1,16 +1,20 @@
 import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-function createPrismaClient() {
+function createPrismaClient(): PrismaClient {
   const connectionString = process.env.DATABASE_URL;
-  // Trả về PrismaClient không adapter nếu không có connectionString (build time)
+
   if (!connectionString) {
+    // Build time: không có DATABASE_URL, trả về client mặc định (sẽ không được dùng)
     return new PrismaClient();
   }
+
+  // Runtime: dùng PrismaPg adapter với pg driver
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { PrismaPg } = require("@prisma/adapter-pg");
   const adapter = new PrismaPg({ connectionString });
   return new PrismaClient({ adapter });
 }
