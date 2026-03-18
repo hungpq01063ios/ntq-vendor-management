@@ -3,7 +3,6 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { calculateAssignmentRates, type RateConfig } from "@/lib/rate-engine";
-import type { Prisma } from "@prisma/client";
 
 
 export interface ProjectBreakdownItem {
@@ -236,7 +235,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     },
     projectBreakdown,
     vendorBreakdown,
-    recentAlerts: recentAlerts.map((a: Prisma.RateAlertGetPayload<{ include: { jobType: true; techStack: true; level: true } }>) => ({
+    recentAlerts: recentAlerts.map((a: (typeof recentAlerts)[number]) => ({
       id: a.id,
       jobType: { name: a.jobType.name },
       techStack: { name: a.techStack.name },
