@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import Sidebar from "@/components/features/dashboard/Sidebar";
 import { getPendingAlertCount } from "@/actions/alert.actions";
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardLayout({
   children,
 }: {
