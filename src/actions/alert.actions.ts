@@ -30,7 +30,7 @@ export async function checkAndCreateDriftAlerts() {
   // 1. Load system config
   const configs = await db.systemConfig.findMany();
   const configMap = Object.fromEntries(
-    configs.map((c) => [c.key, parseFloat(c.value)])
+    configs.map((c: { key: string; value: string }) => [c.key, parseFloat(c.value)])
   );
   const rateConfig = {
     overheadRatePct: configMap["OVERHEAD_RATE_PCT"] ?? 0.2,

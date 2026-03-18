@@ -81,7 +81,7 @@ export async function deleteRateNorm(id: string) {
 
 export async function getSystemConfigs(): Promise<Record<string, number>> {
   const rows = await db.systemConfig.findMany();
-  return Object.fromEntries(rows.map((r) => [r.key, parseFloat(r.value)]));
+  return Object.fromEntries(rows.map((r: { key: string; value: string }) => [r.key, parseFloat(r.value)]));
 }
 
 export async function updateSystemConfig(key: string, value: number) {
@@ -201,7 +201,7 @@ export async function getRateNormForPersonnel(
   ]);
 
   const configMap = Object.fromEntries(
-    configs.map((c) => [c.key, parseFloat(c.value)])
+    configs.map((c: { key: string; value: string }) => [c.key, parseFloat(c.value)])
   );
   const rateConfig = {
     overheadRatePct: configMap["OVERHEAD_RATE_PCT"] ?? 0.2,

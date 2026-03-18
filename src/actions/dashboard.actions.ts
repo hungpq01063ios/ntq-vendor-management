@@ -76,7 +76,7 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   // Build rate config
   const configMap = Object.fromEntries(
-    configRows.map((c) => [c.key, parseFloat(c.value)])
+    configRows.map((c: { key: string; value: string }) => [c.key, parseFloat(c.value)])
   );
   const rateConfig: RateConfig = {
     overheadRatePct: configMap["OVERHEAD_RATE_PCT"] ?? 0.2,
