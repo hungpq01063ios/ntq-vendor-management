@@ -5,10 +5,12 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { useTranslations } from "@/i18n";
 
 export default function LoginForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const { t } = useTranslations();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -24,7 +26,7 @@ export default function LoginForm() {
     setLoading(false);
 
     if (result?.error) {
-      toast.error("Invalid email or password");
+      toast.error(t.auth.invalidCredentials);
     } else {
       router.push("/");
       router.refresh();
@@ -38,19 +40,19 @@ export default function LoginForm() {
     >
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Email
+          {t.auth.email}
         </label>
         <input
           name="email"
           type="email"
           required
           className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="you@ntq.com.vn"
+          placeholder={t.auth.emailPlaceholder}
         />
       </div>
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Password
+          {t.auth.password}
         </label>
         <input
           name="password"
@@ -60,7 +62,7 @@ export default function LoginForm() {
         />
       </div>
       <Button type="submit" className="w-full" disabled={loading}>
-        {loading ? "Signing in..." : "Sign in"}
+        {loading ? t.auth.signingIn : t.auth.signIn}
       </Button>
     </form>
   );

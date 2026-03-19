@@ -3,7 +3,9 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { getPersonnelById } from "@/actions/personnel.actions";
 import { getFormLookups } from "@/actions/lookup.actions";
+import { getCVsByPersonnel } from "@/actions/cv.actions";
 import PersonnelEditSection from "@/components/features/personnel/PersonnelEditSection";
+import PersonnelCVSection from "@/components/features/personnel/PersonnelCVSection";
 import { format } from "date-fns";
 
 const INTERVIEW_COLORS: Record<string, string> = {
@@ -33,10 +35,11 @@ export default async function PersonnelDetailPage({
 }) {
   const { id } = await params;
 
-  const [personnel, session, lookups] = await Promise.all([
+  const [personnel, session, lookups, cvs] = await Promise.all([
     getPersonnelById(id),
     auth(),
     getFormLookups(),
+    getCVsByPersonnel(id),
   ]);
 
   if (!personnel) notFound();
@@ -113,7 +116,7 @@ export default async function PersonnelDetailPage({
           <div>
             <span className="text-gray-500">Tech Stack</span>
             <p className="font-medium text-gray-900">
-              {personnel.techStack.name}
+              {personnel.techStack?.name ?? <span className="text-gray-400">—</span>}
             </p>
           </div>
           <div>
@@ -122,7 +125,9 @@ export default async function PersonnelDetailPage({
           </div>
           <div>
             <span className="text-gray-500">Domain</span>
-            <p className="font-medium text-gray-900">{personnel.domain.name}</p>
+            <p className="font-medium text-gray-900">
+              {personnel.domain?.name ?? <span className="text-gray-400">—</span>}
+            </p>
           </div>
           <div>
             <span className="text-gray-500">English Level</span>
@@ -230,6 +235,9 @@ export default async function PersonnelDetailPage({
           </tbody>
         </table>
       </div>
+
+      {/* Section 3: CV / Resume */}
+      <PersonnelCVSection personnelId={id} cvs={cvs} />
     </div>
   );
 }

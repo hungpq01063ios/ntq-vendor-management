@@ -5,16 +5,14 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { upsertRateNorm } from "@/actions/rate.actions";
-import type { RateNormWithRelations, JobType, TechStack, Level, Domain } from "@/types";
-
-const MARKETS = ["ENGLISH", "JAPAN", "KOREA", "OTHER"] as const;
+import type { RateNormWithRelations, JobType, TechStack, Level, Domain, MarketConfig } from "@/types";
 
 interface FormValues {
   jobTypeId: string;
   techStackId: string;
   levelId: string;
   domainId: string;
-  market: string;
+  marketCode: string;
   rateMin: string;
   rateNorm: string;
   rateMax: string;
@@ -30,6 +28,7 @@ interface Props {
   techStacks: TechStack[];
   levels: Level[];
   domains: Domain[];
+  markets: MarketConfig[];
 }
 
 export default function RateNormSheet({
@@ -41,6 +40,7 @@ export default function RateNormSheet({
   techStacks,
   levels,
   domains,
+  markets,
 }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const isEdit = !!rateNorm;
@@ -61,7 +61,7 @@ export default function RateNormSheet({
           techStackId: rateNorm.techStackId,
           levelId: rateNorm.levelId,
           domainId: rateNorm.domainId,
-          market: rateNorm.market,
+          marketCode: rateNorm.marketCode,
           rateMin: String(rateNorm.rateMin),
           rateNorm: String(rateNorm.rateNorm),
           rateMax: String(rateNorm.rateMax),
@@ -75,7 +75,7 @@ export default function RateNormSheet({
           techStackId: "",
           levelId: "",
           domainId: "",
-          market: defaultMarket,
+          marketCode: defaultMarket,
           rateMin: "",
           rateNorm: "",
           rateMax: "",
@@ -118,7 +118,7 @@ export default function RateNormSheet({
         techStackId: values.techStackId,
         levelId: values.levelId,
         domainId: values.domainId,
-        market: values.market as "ENGLISH" | "JAPAN" | "KOREA" | "OTHER",
+        marketCode: values.marketCode,
         rateMin,
         rateNorm: rateNormVal,
         rateMax,
@@ -236,11 +236,11 @@ export default function RateNormSheet({
               Market <span className="text-red-500">*</span>
             </label>
             <select
-              {...register("market", { required: "Required" })}
+              {...register("marketCode", { required: "Required" })}
               className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              {MARKETS.map((m) => (
-                <option key={m} value={m}>{m.charAt(0) + m.slice(1).toLowerCase()}</option>
+              {markets.map((m) => (
+                <option key={m.code} value={m.code}>{m.name}</option>
               ))}
             </select>
           </div>

@@ -6,15 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { deleteRateNorm } from "@/actions/rate.actions";
 import RateNormSheet from "./RateNormSheet";
-import type { RateNormWithRelations, JobType, TechStack, Level, Domain } from "@/types";
-
-const MARKETS = ["ENGLISH", "JAPAN", "KOREA", "OTHER"] as const;
-const MARKET_LABELS: Record<string, string> = {
-  ENGLISH: "English",
-  JAPAN: "Japan",
-  KOREA: "Korea",
-  OTHER: "Other",
-};
+import type { RateNormWithRelations, JobType, TechStack, Level, Domain, MarketConfig } from "@/types";
 
 function fmt(n: number) {
   return new Intl.NumberFormat("en-US", {
@@ -31,6 +23,7 @@ interface Props {
   techStacks: TechStack[];
   levels: Level[];
   domains: Domain[];
+  markets: MarketConfig[];
 }
 
 export default function RateMatrixGrid({
@@ -40,6 +33,7 @@ export default function RateMatrixGrid({
   techStacks,
   levels,
   domains,
+  markets,
 }: Props) {
   const [marketTab, setMarketTab] = useState<string>("ENGLISH");
   const [domainFilter, setDomainFilter] = useState("");
@@ -51,7 +45,7 @@ export default function RateMatrixGrid({
 
   const filtered = useMemo(() => {
     return rateNorms.filter((n) => {
-      const matchMarket = n.market === marketTab;
+      const matchMarket = n.marketCode === marketTab;
       const matchDomain = !domainFilter || n.domainId === domainFilter;
       const matchTech = !techStackFilter || n.techStackId === techStackFilter;
       return matchMarket && matchDomain && matchTech;
@@ -76,17 +70,17 @@ export default function RateMatrixGrid({
     <>
       {/* Market tabs */}
       <div className="flex items-center gap-1 mb-4 border-b">
-        {MARKETS.map((m) => (
+        {markets.map((m) => (
           <button
-            key={m}
-            onClick={() => setMarketTab(m)}
+            key={m.code}
+            onClick={() => setMarketTab(m.code)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              marketTab === m
+              marketTab === m.code
                 ? "border-blue-600 text-blue-700"
                 : "border-transparent text-gray-500 hover:text-gray-700"
             }`}
           >
-            {MARKET_LABELS[m]}
+            {m.name}
           </button>
         ))}
       </div>
@@ -156,7 +150,7 @@ export default function RateMatrixGrid({
                   colSpan={isDULeader ? 9 : 8}
                   className="px-4 py-8 text-center text-gray-400"
                 >
-                  No rate norms found for {MARKET_LABELS[marketTab]} market.
+                  No rate norms found for {markets.find(m => m.code === marketTab)?.name ?? marketTab} market.
                   {isDULeader && (
                     <button
                       onClick={() => {
@@ -220,6 +214,7 @@ export default function RateMatrixGrid({
         techStacks={techStacks}
         levels={levels}
         domains={domains}
+        markets={markets}
       />
 
       {/* Delete Confirmation */}

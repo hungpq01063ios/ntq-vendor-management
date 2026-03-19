@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useTranslations } from "@/i18n";
 
 interface SummaryCardsProps {
   totalActiveHeadcount: number;
@@ -85,6 +86,7 @@ export default function SummaryCards({
   isDULeader,
 }: SummaryCardsProps) {
   const router = useRouter();
+  const { t } = useTranslations();
 
   const marginAccent =
     totalMargin > 0 ? "green" : totalMargin < 0 ? "red" : undefined;
@@ -99,13 +101,13 @@ export default function SummaryCards({
     <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
       <Card
         icon="👥"
-        label="Active Headcount"
+        label={t.dashboard.activeHeadcount}
         value={String(totalActiveHeadcount)}
         onClick={() => router.push("/personnel")}
       />
       <Card
         icon="📋"
-        label="Active Projects"
+        label={t.dashboard.activeProjects}
         value={String(totalActiveProjects)}
         onClick={() => router.push("/projects")}
       />
@@ -113,17 +115,17 @@ export default function SummaryCards({
         <>
           <Card
             icon="💰"
-            label="Monthly Revenue"
+            label={t.dashboard.monthlyRevenue}
             value={fmt(totalMonthlyRevenue)}
           />
           <Card
             icon="📤"
-            label="Monthly Cost"
+            label={t.dashboard.monthlyCost}
             value={fmt(totalMonthlyCost)}
           />
           <Card
             icon="📈"
-            label="Gross Margin"
+            label={t.dashboard.grossMargin}
             value={fmt(totalMargin)}
             sub={`${(totalMarginPct * 100).toFixed(1)}%`}
             accent={marginAccent}
@@ -132,9 +134,9 @@ export default function SummaryCards({
       )}
       <Card
         icon="🔔"
-        label="Pending Alerts"
+        label={t.dashboard.pendingAlerts}
         value={String(pendingAlertCount)}
-        sub={pendingAlertCount === 0 ? "All clear" : "Need review"}
+        sub={pendingAlertCount === 0 ? t.dashboard.allClear : t.dashboard.needReview}
         accent={alertAccent}
         onClick={() => router.push("/alerts")}
       />

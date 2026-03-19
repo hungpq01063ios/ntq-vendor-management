@@ -3,15 +3,10 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { getProjectById } from "@/actions/project.actions";
 import { getPersonnel } from "@/actions/personnel.actions";
+import { getProjectRateBreakdown } from "@/actions/assignment.actions";
 import AssignmentSection from "@/components/features/assignment/AssignmentSection";
+import ProjectPnLCard from "@/components/features/project/ProjectPnLCard";
 import { format } from "date-fns";
-
-const MARKET_LABELS: Record<string, string> = {
-  ENGLISH: "English",
-  JAPAN: "Japan",
-  KOREA: "Korea",
-  OTHER: "Other",
-};
 
 const STATUS_COLORS: Record<string, string> = {
   ACTIVE: "bg-green-100 text-green-800",
@@ -26,10 +21,11 @@ export default async function ProjectDetailPage({
 }) {
   const { id } = await params;
 
-  const [project, session, availablePersonnel] = await Promise.all([
+  const [project, session, availablePersonnel, rateBreakdown] = await Promise.all([
     getProjectById(id),
     auth(),
     getPersonnel({ status: "AVAILABLE" }),
+    getProjectRateBreakdown(id),
   ]);
 
   if (!project) notFound();
@@ -42,7 +38,7 @@ export default async function ProjectDetailPage({
   ).length;
 
   return (
-    <div className="max-w-5xl">
+    <div className="max-w-6xl">
       {/* Back */}
       <Link
         href="/projects"
@@ -63,7 +59,7 @@ export default async function ProjectDetailPage({
                 {project.status}
               </span>
               <span className="text-sm text-gray-500">
-                {MARKET_LABELS[project.market] ?? project.market}
+                {project.marketCode}
               </span>
               <span className="text-sm text-gray-500">
                 {activeCount} active member{activeCount !== 1 ? "s" : ""}
@@ -116,12 +112,18 @@ export default async function ProjectDetailPage({
         </div>
       </div>
 
-      {/* Section 2: Assignments */}
+      {/* Section 2: P&L Summary (DU_LEADER only) */}
+      {isDULeader && rateBreakdown.totalRevenue > 0 && (
+        <ProjectPnLCard breakdown={rateBreakdown} />
+      )}
+
+      {/* Section 3: Assignments (with rates) */}
       <AssignmentSection
         projectId={id}
         assignments={project.assignments}
         availablePersonnel={availablePersonnel}
         isDULeader={isDULeader}
+        rateRows={rateBreakdown.assignments}
       />
     </div>
   );

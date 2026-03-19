@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { createAssignment } from "@/actions/assignment.actions";
+import { createAssignment, updateAssignment } from "@/actions/assignment.actions";
 import { getRateNormForPersonnel } from "@/actions/rate.actions";
 import RateSuggestionCard from "@/components/features/rate/RateSuggestionCard";
-import type { PersonnelWithRelations } from "@/types";
+import type { PersonnelWithRelations, Assignment } from "@/types";
 
 const AssignmentFormSchema = z.object({
   personnelId: z.string().min(1, "Personnel is required"),
@@ -35,12 +36,26 @@ const emptyValues: AssignmentFormValues = {
   vendorRateOverride: "",
 };
 
+function toFormValues(a: Assignment): AssignmentFormValues {
+  return {
+    personnelId: a.personnelId,
+    roleInProject: a.roleInProject ?? "",
+    startDate: new Date(a.startDate).toISOString().split("T")[0],
+    endDate: a.endDate ? new Date(a.endDate).toISOString().split("T")[0] : "",
+    billingRateOverride: a.billingRateOverride?.toString() ?? "",
+    billingRateNote: a.billingRateNote ?? "",
+    vendorRateOverride: a.vendorRateOverride?.toString() ?? "",
+  };
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
   projectId: string;
   availablePersonnel: PersonnelWithRelations[];
   isDULeader: boolean;
+  /** Pass assignment to enable edit mode */
+  assignment?: Assignment & { personnel: PersonnelWithRelations };
 }
 
 export default function AssignmentSheet({
@@ -49,9 +64,12 @@ export default function AssignmentSheet({
   projectId,
   availablePersonnel,
   isDULeader,
+  assignment,
 }: Props) {
+  const isEdit = !!assignment;
   const [rateData, setRateData] = useState<RateData>(null);
   const [rateLoading, setRateLoading] = useState(false);
+  const router = useRouter();
 
   const {
     register,
@@ -68,16 +86,20 @@ export default function AssignmentSheet({
 
   useEffect(() => {
     if (open) {
-      reset(emptyValues);
-      setRateData(null);
+      if (isEdit && assignment) {
+        reset(toFormValues(assignment));
+        // Load rate data for the assigned personnel
+        loadRateForPersonnel(assignment.personnelId);
+      } else {
+        reset(emptyValues);
+        setRateData(null);
+      }
     }
-  }, [open, reset]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, assignment, isEdit, reset]);
 
-  async function handlePersonnelChange(personnelId: string) {
-    if (!personnelId) {
-      setRateData(null);
-      return;
-    }
+  async function loadRateForPersonnel(personnelId: string) {
+    if (!personnelId) { setRateData(null); return; }
     setRateLoading(true);
     try {
       const result = await getRateNormForPersonnel(personnelId, projectId);
@@ -89,34 +111,48 @@ export default function AssignmentSheet({
     }
   }
 
+  async function handlePersonnelChange(personnelId: string) {
+    await loadRateForPersonnel(personnelId);
+  }
+
   async function onSubmit(data: AssignmentFormValues) {
-    try {
-      await createAssignment({
-        personnelId: data.personnelId,
-        projectId,
-        roleInProject: data.roleInProject || undefined,
-        startDate: new Date(data.startDate),
-        endDate: data.endDate ? new Date(data.endDate) : undefined,
-        billingRateOverride:
-          data.billingRateOverride && data.billingRateOverride !== ""
-            ? parseFloat(data.billingRateOverride)
-            : undefined,
-        billingRateNote: data.billingRateNote || undefined,
-        vendorRateOverride:
-          data.vendorRateOverride && data.vendorRateOverride !== ""
-            ? parseFloat(data.vendorRateOverride)
-            : undefined,
-        status: "ACTIVE",
-      });
-      toast.success("Assignment created");
-      onClose();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    const payload = {
+      personnelId: data.personnelId,
+      projectId,
+      roleInProject: data.roleInProject || undefined,
+      startDate: new Date(data.startDate),
+      endDate: data.endDate ? new Date(data.endDate) : undefined,
+      billingRateOverride:
+        data.billingRateOverride && data.billingRateOverride !== ""
+          ? parseFloat(data.billingRateOverride)
+          : undefined,
+      billingRateNote: data.billingRateNote || undefined,
+      vendorRateOverride:
+        data.vendorRateOverride && data.vendorRateOverride !== ""
+          ? parseFloat(data.vendorRateOverride)
+          : undefined,
+      status: (isEdit ? assignment!.status : "ACTIVE") as "ACTIVE" | "ENDED",
+    };
+
+    let result;
+    if (isEdit && assignment) {
+      result = await updateAssignment(assignment.id, payload);
+    } else {
+      result = await createAssignment(payload);
     }
+
+    if (!result.success) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success(isEdit ? "Assignment updated" : "Assignment created");
+    router.refresh();
+    onClose();
   }
 
   if (!open) return null;
 
+  // In edit mode, personnel is fixed; in create mode show selector from available
   const { onChange: rhfOnChange, ...personnelRest } = register("personnelId");
 
   return (
@@ -126,7 +162,7 @@ export default function AssignmentSheet({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <h2 className="text-lg font-semibold text-gray-900">
-            Add Assignment
+            {isEdit ? "Edit Assignment" : "Add Assignment"}
           </h2>
           <button
             onClick={onClose}
@@ -138,33 +174,45 @@ export default function AssignmentSheet({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-          {/* Personnel Select */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Personnel <span className="text-red-500">*</span>
-            </label>
-            <select
-              {...personnelRest}
-              onChange={async (e) => {
-                rhfOnChange(e);
-                await handlePersonnelChange(e.target.value);
-              }}
-              className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">— Select personnel —</option>
-              {availablePersonnel.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.fullName} — {p.jobType.name} / {p.level.name} (
-                  {p.vendor.name})
-                </option>
-              ))}
-            </select>
-            {errors.personnelId && (
-              <p className="text-xs text-red-500 mt-1">
-                {errors.personnelId.message}
-              </p>
-            )}
-          </div>
+          {/* Personnel */}
+          {isEdit ? (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Personnel
+              </label>
+              <div className="w-full border rounded-md px-3 py-2 text-sm bg-gray-50 text-gray-700">
+                {assignment!.personnel.fullName} — {assignment!.personnel.jobType.name} / {assignment!.personnel.level.name}
+              </div>
+              <input type="hidden" {...register("personnelId")} />
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Personnel <span className="text-red-500">*</span>
+              </label>
+              <select
+                {...personnelRest}
+                onChange={async (e) => {
+                  rhfOnChange(e);
+                  await handlePersonnelChange(e.target.value);
+                }}
+                className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">— Select personnel —</option>
+                {availablePersonnel.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.fullName} — {p.jobType.name} / {p.level.name} (
+                    {p.vendor.name})
+                  </option>
+                ))}
+              </select>
+              {errors.personnelId && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.personnelId.message}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Rate Suggestion Card */}
           {rateLoading && (
@@ -278,7 +326,9 @@ export default function AssignmentSheet({
             Cancel
           </Button>
           <Button onClick={handleSubmit(onSubmit)} disabled={isSubmitting}>
-            {isSubmitting ? "Assigning..." : "Assign"}
+            {isSubmitting
+              ? isEdit ? "Saving..." : "Assigning..."
+              : isEdit ? "Save Changes" : "Assign"}
           </Button>
         </div>
       </div>

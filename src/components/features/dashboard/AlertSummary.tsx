@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
+import { vi as viLocale } from "date-fns/locale";
+import { useTranslations } from "@/i18n";
 import type { AlertSummaryItem } from "@/actions/dashboard.actions";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -11,24 +13,26 @@ const STATUS_COLORS: Record<string, string> = {
   DISMISSED: "bg-gray-100 text-gray-500",
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  PENDING: "Pending",
-  FLAGGED_FOR_DU_LEADER: "Flagged",
-  RESOLVED: "Resolved",
-  DISMISSED: "Dismissed",
-};
-
 interface Props {
   recentAlerts: AlertSummaryItem[];
   pendingCount: number;
 }
 
 export default function AlertSummary({ recentAlerts, pendingCount }: Props) {
+  const { t, locale } = useTranslations();
+
+  const STATUS_LABELS: Record<string, string> = {
+    PENDING: t.common.alertPending,
+    FLAGGED_FOR_DU_LEADER: t.common.alertFlagged,
+    RESOLVED: t.common.alertResolved,
+    DISMISSED: t.common.alertDismissed,
+  };
+
   return (
     <div className="bg-white rounded-lg border shadow-sm">
       <div className="px-4 py-3 border-b flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-gray-700">Recent Alerts</h3>
+          <h3 className="text-sm font-semibold text-gray-700">{t.dashboard.recentAlerts}</h3>
           {pendingCount > 0 && (
             <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-red-500 text-white text-xs font-bold">
               {pendingCount}
@@ -39,14 +43,14 @@ export default function AlertSummary({ recentAlerts, pendingCount }: Props) {
           href="/alerts"
           className="text-xs text-blue-600 hover:text-blue-800"
         >
-          View all →
+          {t.common.viewAll}
         </Link>
       </div>
 
       <div className="divide-y divide-gray-100">
         {recentAlerts.length === 0 ? (
           <div className="px-4 py-8 text-center text-gray-400 text-sm">
-            ✅ No pending alerts
+            {t.alert.noAlerts}
           </div>
         ) : (
           recentAlerts.map((a) => (
@@ -58,6 +62,7 @@ export default function AlertSummary({ recentAlerts, pendingCount }: Props) {
                 <p className="text-xs text-gray-400 mt-0.5">
                   {formatDistanceToNow(new Date(a.triggeredAt), {
                     addSuffix: true,
+                    locale: locale === "vi" ? viLocale : undefined,
                   })}
                 </p>
               </div>

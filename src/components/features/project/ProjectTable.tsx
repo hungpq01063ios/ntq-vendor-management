@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { softDeleteProject } from "@/actions/project.actions";
 import ProjectSheet from "./ProjectSheet";
-import type { Project } from "@/types";
+import type { Project, MarketConfig } from "@/types";
 
 type ProjectRow = Project & {
   assignments: { id: string; status: string }[];
@@ -29,9 +29,10 @@ const STATUS_COLORS: Record<string, string> = {
 interface Props {
   projects: ProjectRow[];
   isDULeader: boolean;
+  markets: MarketConfig[];
 }
 
-export default function ProjectTable({ projects, isDULeader }: Props) {
+export default function ProjectTable({ projects, isDULeader, markets }: Props) {
   const [search, setSearch] = useState("");
   const [marketFilter, setMarketFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -47,7 +48,7 @@ export default function ProjectTable({ projects, isDULeader }: Props) {
         !search ||
         p.name.toLowerCase().includes(q) ||
         p.clientName.toLowerCase().includes(q);
-      const matchMarket = !marketFilter || p.market === marketFilter;
+      const matchMarket = !marketFilter || p.marketCode === marketFilter;
       const matchStatus = !statusFilter || p.status === statusFilter;
       return matchSearch && matchMarket && matchStatus;
     });
@@ -89,10 +90,9 @@ export default function ProjectTable({ projects, isDULeader }: Props) {
           className="border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">All Markets</option>
-          <option value="ENGLISH">English</option>
-          <option value="JAPAN">Japan</option>
-          <option value="KOREA">Korea</option>
-          <option value="OTHER">Other</option>
+          {markets.map((m) => (
+            <option key={m.code} value={m.code}>{m.name}</option>
+          ))}
         </select>
         <select
           value={statusFilter}
@@ -121,7 +121,7 @@ export default function ProjectTable({ projects, isDULeader }: Props) {
         <div className="flex gap-2 mb-3">
           {marketFilter && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800">
-              {MARKET_LABELS[marketFilter]}
+              {markets.find(m => m.code === marketFilter)?.name ?? marketFilter}
               <button
                 onClick={() => setMarketFilter("")}
                 className="hover:text-blue-600"
@@ -194,7 +194,7 @@ export default function ProjectTable({ projects, isDULeader }: Props) {
                   </td>
                   <td className="px-4 py-3 text-gray-600">{p.clientName}</td>
                   <td className="px-4 py-3 text-gray-600 text-xs">
-                    {MARKET_LABELS[p.market] ?? p.market}
+                  {markets.find(m => m.code === p.marketCode)?.name ?? p.marketCode}
                   </td>
                   <td className="px-4 py-3 text-gray-600">{activeCount}</td>
                   <td className="px-4 py-3 text-gray-600 text-xs">
@@ -243,6 +243,7 @@ export default function ProjectTable({ projects, isDULeader }: Props) {
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
         project={selectedProject ?? undefined}
+        markets={markets}
       />
 
       {/* Delete Confirmation */}

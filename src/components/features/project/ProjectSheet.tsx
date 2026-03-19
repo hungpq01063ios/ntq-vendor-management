@@ -1,18 +1,19 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { createProject, updateProject } from "@/actions/project.actions";
-import type { Project } from "@/types";
+import type { Project, MarketConfig } from "@/types";
 
 const ProjectFormSchema = z.object({
   name: z.string().min(1, "Project name is required"),
   clientName: z.string().min(1, "Client name is required"),
-  market: z.enum(["ENGLISH", "JAPAN", "KOREA", "OTHER"]),
+  marketCode: z.string().min(1, "Market is required"),
   status: z.enum(["ACTIVE", "ON_HOLD", "ENDED"]),
   startDate: z.string().min(1, "Start date is required"),
   endDate: z.string().optional(),
@@ -25,7 +26,7 @@ function toFormValues(p: Project): ProjectFormValues {
   return {
     name: p.name,
     clientName: p.clientName,
-    market: p.market,
+    marketCode: p.marketCode,
     status: p.status,
     startDate: new Date(p.startDate).toISOString().split("T")[0],
     endDate: p.endDate
@@ -38,7 +39,7 @@ function toFormValues(p: Project): ProjectFormValues {
 const emptyValues: ProjectFormValues = {
   name: "",
   clientName: "",
-  market: "ENGLISH",
+  marketCode: "ENGLISH",
   status: "ACTIVE",
   startDate: "",
   endDate: "",
@@ -49,10 +50,12 @@ interface Props {
   open: boolean;
   onClose: () => void;
   project?: Project;
+  markets: MarketConfig[];
 }
 
-export default function ProjectSheet({ open, onClose, project }: Props) {
+export default function ProjectSheet({ open, onClose, project, markets }: Props) {
   const isEdit = !!project;
+  const router = useRouter();
 
   const {
     register,
@@ -71,28 +74,27 @@ export default function ProjectSheet({ open, onClose, project }: Props) {
   }, [open, project, reset]);
 
   async function onSubmit(data: ProjectFormValues) {
-    try {
-      const payload = {
-        name: data.name,
-        clientName: data.clientName,
-        market: data.market,
-        status: data.status,
-        startDate: new Date(data.startDate),
-        endDate: data.endDate ? new Date(data.endDate) : undefined,
-        notes: data.notes || undefined,
-      };
+    const payload = {
+      name: data.name,
+      clientName: data.clientName,
+      marketCode: data.marketCode,
+      status: data.status,
+      startDate: new Date(data.startDate),
+      endDate: data.endDate ? new Date(data.endDate) : undefined,
+      notes: data.notes || undefined,
+    };
 
-      if (isEdit && project) {
-        await updateProject(project.id, payload);
-        toast.success("Project updated");
-      } else {
-        await createProject(payload);
-        toast.success("Project created");
-      }
-      onClose();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    if (isEdit && project) {
+      const result = await updateProject(project.id, payload);
+      if (!result.success) { toast.error(result.error); return; }
+      toast.success("Project updated");
+    } else {
+      const result = await createProject(payload);
+      if (!result.success) { toast.error(result.error); return; }
+      toast.success("Project created");
     }
+    router.refresh();
+    onClose();
   }
 
   if (!open) return null;
@@ -158,13 +160,12 @@ export default function ProjectSheet({ open, onClose, project }: Props) {
                 Market
               </label>
               <select
-                {...register("market")}
+                {...register("marketCode")}
                 className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="ENGLISH">English</option>
-                <option value="JAPAN">Japan</option>
-                <option value="KOREA">Korea</option>
-                <option value="OTHER">Other</option>
+                {markets.map((m) => (
+                  <option key={m.code} value={m.code}>{m.name}</option>
+                ))}
               </select>
             </div>
             <div>

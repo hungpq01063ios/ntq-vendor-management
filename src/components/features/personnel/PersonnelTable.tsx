@@ -8,6 +8,7 @@ import {
   updateInterviewStatus,
   softDeletePersonnel,
 } from "@/actions/personnel.actions";
+import { useTranslations } from "@/i18n";
 import PersonnelSheet from "./PersonnelSheet";
 import type {
   Personnel,
@@ -16,14 +17,16 @@ import type {
   TechStack,
   Level,
   Domain,
+  InterviewStatus,
 } from "@/types";
+
 
 type PersonnelRow = Personnel & {
   vendor: Vendor;
   jobType: JobType;
-  techStack: TechStack;
+  techStack: TechStack | null;
   level: Level;
-  domain: Domain;
+  domain: Domain | null;
 };
 
 const INTERVIEW_COLORS: Record<string, string> = {
@@ -58,16 +61,28 @@ function InterviewStatusSelect({
   currentStatus: string;
 }) {
   const [loading, setLoading] = useState(false);
+  const { t } = useTranslations();
+
+  const INTERVIEW_STATUS_LABELS: Record<string, string> = {
+    NEW: t.common.interviewNew,
+    SCREENING: t.common.interviewScreening,
+    TECHNICAL_TEST: t.common.interviewTechnicalTest,
+    INTERVIEW: t.common.interviewInterview,
+    PASSED: t.common.interviewPassed,
+    FAILED: t.common.interviewFailed,
+  };
 
   async function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
     setLoading(true);
-    try {
-      await updateInterviewStatus(personnelId, e.target.value);
-      toast.success("Interview status updated");
-    } catch {
-      toast.error("Failed to update status");
-    } finally {
-      setLoading(false);
+    const result = await updateInterviewStatus(
+      personnelId,
+      e.target.value as InterviewStatus
+    );
+    setLoading(false);
+    if (result.success) {
+      toast.success(t.personnel.interviewStatus + " updated");
+    } else {
+      toast.error(result.error);
     }
   }
 
@@ -80,7 +95,7 @@ function InterviewStatusSelect({
     >
       {INTERVIEW_STATUSES.map((s) => (
         <option key={s} value={s}>
-          {s.replace("_", " ")}
+          {INTERVIEW_STATUS_LABELS[s] ?? s}
         </option>
       ))}
     </select>
@@ -111,6 +126,21 @@ export default function PersonnelTable({
   const [interviewFilter, setInterviewFilter] = useState("");
   const [jobTypeFilter, setJobTypeFilter] = useState("");
   const [techStackFilter, setTechStackFilter] = useState("");
+  const { t } = useTranslations();
+
+  const PERSONNEL_STATUS_LABELS: Record<string, string> = {
+    AVAILABLE: t.common.statusAvailable,
+    ON_PROJECT: t.common.statusOnProject,
+    ENDED: t.common.statusEnded,
+  };
+  const INTERVIEW_STATUS_LABELS: Record<string, string> = {
+    NEW: t.common.interviewNew,
+    SCREENING: t.common.interviewScreening,
+    TECHNICAL_TEST: t.common.interviewTechnicalTest,
+    INTERVIEW: t.common.interviewInterview,
+    PASSED: t.common.interviewPassed,
+    FAILED: t.common.interviewFailed,
+  };
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedPersonnel, setSelectedPersonnel] =
@@ -146,14 +176,13 @@ export default function PersonnelTable({
   async function handleDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
-    try {
-      await softDeletePersonnel(deleteTarget.id);
-      toast.success(`${deleteTarget.fullName} marked as ended`);
+    const result = await softDeletePersonnel(deleteTarget.id);
+    setDeleting(false);
+    if (result.success) {
+      toast.success(`${deleteTarget.fullName} ${t.common.statusEnded.toLowerCase()}`);
       setDeleteTarget(null);
-    } catch {
-      toast.error("Failed to update personnel");
-    } finally {
-      setDeleting(false);
+    } else {
+      toast.error(result.error);
     }
   }
 
@@ -163,7 +192,7 @@ export default function PersonnelTable({
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <input
           type="text"
-          placeholder="Search by name..."
+          placeholder={t.personnel.searchPlaceholder}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="border rounded-md px-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -173,20 +202,20 @@ export default function PersonnelTable({
           onChange={(e) => setStatusFilter(e.target.value)}
           className="border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <option value="">All Statuses</option>
-          <option value="AVAILABLE">Available</option>
-          <option value="ON_PROJECT">On Project</option>
-          <option value="ENDED">Ended</option>
+          <option value="">{t.common.allStatuses}</option>
+          <option value="AVAILABLE">{t.common.statusAvailable}</option>
+          <option value="ON_PROJECT">{t.common.statusOnProject}</option>
+          <option value="ENDED">{t.common.statusEnded}</option>
         </select>
         <select
           value={interviewFilter}
           onChange={(e) => setInterviewFilter(e.target.value)}
           className="border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <option value="">All Interview</option>
+          <option value="">{t.personnel.interviewStatus}</option>
           {INTERVIEW_STATUSES.map((s) => (
             <option key={s} value={s}>
-              {s.replace("_", " ")}
+              {INTERVIEW_STATUS_LABELS[s] ?? s}
             </option>
           ))}
         </select>
@@ -195,7 +224,7 @@ export default function PersonnelTable({
           onChange={(e) => setJobTypeFilter(e.target.value)}
           className="border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <option value="">All Job Types</option>
+          <option value="">{t.vendor.jobType}</option>
           {jobTypes.map((j) => (
             <option key={j.id} value={j.id}>
               {j.name}
@@ -207,10 +236,10 @@ export default function PersonnelTable({
           onChange={(e) => setTechStackFilter(e.target.value)}
           className="border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <option value="">All Tech Stacks</option>
-          {techStacks.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
+          <option value="">{t.vendor.techStack}</option>
+          {techStacks.map((ts) => (
+            <option key={ts.id} value={ts.id}>
+              {ts.name}
             </option>
           ))}
         </select>
@@ -221,7 +250,7 @@ export default function PersonnelTable({
               setSheetOpen(true);
             }}
           >
-            + Add Personnel
+            {t.personnel.addPersonnel}
           </Button>
         </div>
       </div>
@@ -256,36 +285,36 @@ export default function PersonnelTable({
           <thead className="bg-gray-50 border-b">
             <tr>
               <th className="text-left px-4 py-3 font-medium text-gray-600">
-                Name
+                {t.personnel.fullName}
               </th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">
-                Vendor
+                {t.personnel.vendor}
               </th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">
-                Job Type
+                {t.vendor.jobType}
               </th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">
-                Tech Stack
+                {t.vendor.techStack}
               </th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">
-                Level
+                {t.vendor.level}
               </th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">
                 English
               </th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">
-                Interview
+                {t.vendor.interview}
               </th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">
-                Status
+                {t.common.status}
               </th>
               {isDULeader && (
                 <th className="text-left px-4 py-3 font-medium text-gray-600">
-                  Rate
+                  {t.personnel.vendorRate}
                 </th>
               )}
               <th className="text-left px-4 py-3 font-medium text-gray-600">
-                Actions
+                {t.common.actions}
               </th>
             </tr>
           </thead>
@@ -296,7 +325,7 @@ export default function PersonnelTable({
                   colSpan={isDULeader ? 10 : 9}
                   className="px-4 py-8 text-center text-gray-400"
                 >
-                  No personnel found.
+                  {t.personnel.noPersonnel}
                 </td>
               </tr>
             )}
@@ -319,7 +348,7 @@ export default function PersonnelTable({
                   {p.jobType.name}
                 </td>
                 <td className="px-4 py-3 text-gray-600 text-xs">
-                  {p.techStack.name}
+                  {p.techStack?.name ?? <span className="text-gray-300">—</span>}
                 </td>
                 <td className="px-4 py-3 text-gray-600 text-xs">
                   {p.level.name}
@@ -331,14 +360,14 @@ export default function PersonnelTable({
                   <span
                     className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${INTERVIEW_COLORS[p.interviewStatus] ?? ""}`}
                   >
-                    {p.interviewStatus.replace("_", " ")}
+                    {INTERVIEW_STATUS_LABELS[p.interviewStatus] ?? p.interviewStatus}
                   </span>
                 </td>
                 <td className="px-4 py-3">
                   <span
                     className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${PERSONNEL_STATUS_COLORS[p.status] ?? ""}`}
                   >
-                    {p.status}
+                    {PERSONNEL_STATUS_LABELS[p.status] ?? p.status}
                   </span>
                 </td>
                 {isDULeader && (
@@ -354,13 +383,13 @@ export default function PersonnelTable({
                       href={`/personnel/${p.id}`}
                       className="text-blue-600 hover:underline text-xs"
                     >
-                      View
+                      {t.common.view}
                     </Link>
                     <button
                       onClick={() => openEdit(p)}
                       className="text-gray-600 hover:text-gray-900 text-xs"
                     >
-                      Edit
+                      {t.common.edit}
                     </button>
                     <InterviewStatusSelect
                       personnelId={p.id}
@@ -371,7 +400,7 @@ export default function PersonnelTable({
                         onClick={() => setDeleteTarget(p)}
                         className="text-red-500 hover:text-red-700 text-xs"
                       >
-                        End
+                        {t.common.statusEnded}
                       </button>
                     )}
                   </div>
@@ -405,12 +434,10 @@ export default function PersonnelTable({
           <div className="fixed inset-0 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                End personnel?
+                {t.vendor.deactivateTitle.replace("vendor", t.personnel.title.toLowerCase())}
               </h3>
               <p className="text-sm text-gray-600 mb-6">
-                <strong>{deleteTarget.fullName}</strong> will be marked as{" "}
-                <span className="font-medium">ENDED</span> and removed from
-                active pool.
+                <strong>{deleteTarget.fullName}</strong> {t.vendor.deactivateBody}
               </p>
               <div className="flex justify-end gap-3">
                 <Button
@@ -418,14 +445,14 @@ export default function PersonnelTable({
                   onClick={() => setDeleteTarget(null)}
                   disabled={deleting}
                 >
-                  Cancel
+                  {t.common.cancel}
                 </Button>
                 <Button
                   variant="destructive"
                   onClick={handleDelete}
                   disabled={deleting}
                 >
-                  {deleting ? "Ending..." : "End Personnel"}
+                  {deleting ? t.common.saving : t.common.statusEnded}
                 </Button>
               </div>
             </div>

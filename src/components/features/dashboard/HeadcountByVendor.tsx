@@ -8,6 +8,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import { useTranslations } from "@/i18n";
 import type { VendorBreakdownItem } from "@/actions/dashboard.actions";
 
 const COLORS = [
@@ -33,13 +34,14 @@ interface CustomTooltipProps {
 }
 
 function CustomTooltip({ active, payload }: CustomTooltipProps) {
+  const { t } = useTranslations();
   if (!active || !payload?.length) return null;
   const item = payload[0];
   return (
     <div className="bg-white border rounded-lg p-3 shadow-lg text-xs">
       <p className="font-semibold text-gray-800">{item.name}</p>
       <p className="text-gray-600">
-        {item.value} personnel ({item.payload.pct.toFixed(1)}%)
+        {item.value} {t.dashboard.personnel} ({item.payload.pct.toFixed(1)}%)
       </p>
     </div>
   );
@@ -50,6 +52,7 @@ interface Props {
 }
 
 export default function HeadcountByVendor({ vendorBreakdown }: Props) {
+  const { t } = useTranslations();
   const total = vendorBreakdown.reduce((s, v) => s + v.headcount, 0);
 
   const data = vendorBreakdown.map((v) => ({
@@ -61,11 +64,11 @@ export default function HeadcountByVendor({ vendorBreakdown }: Props) {
   return (
     <div className="bg-white rounded-lg border p-4 shadow-sm">
       <h3 className="text-sm font-semibold text-gray-700 mb-3">
-        Headcount by Vendor
+        {t.dashboard.headcountByVendor}
       </h3>
       {data.length === 0 ? (
         <div className="flex items-center justify-center h-48 text-gray-400 text-sm">
-          No active assignments
+          {t.dashboard.noActiveAssignments}
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={240}>

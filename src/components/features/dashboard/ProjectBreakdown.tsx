@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useTranslations } from "@/i18n";
 import type { ProjectBreakdownItem } from "@/actions/dashboard.actions";
 
 interface Props {
@@ -18,6 +19,7 @@ function fmtPct(n: number) {
 
 export default function ProjectBreakdown({ projectBreakdown, isDULeader }: Props) {
   const router = useRouter();
+  const { t } = useTranslations();
 
   const totalHeadcount = projectBreakdown.reduce((s, p) => s + p.headcount, 0);
   const totalRevenue = projectBreakdown.reduce((s, p) => s + p.revenue, 0);
@@ -28,12 +30,12 @@ export default function ProjectBreakdown({ projectBreakdown, isDULeader }: Props
   return (
     <div className="bg-white rounded-lg border shadow-sm">
       <div className="px-4 py-3 border-b flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700">Project Summary</h3>
+        <h3 className="text-sm font-semibold text-gray-700">{t.dashboard.projectSummary}</h3>
         <button
           onClick={() => router.push("/projects")}
           className="text-xs text-blue-600 hover:text-blue-800"
         >
-          View all →
+          {t.common.viewAll}
         </button>
       </div>
       <div className="overflow-x-auto">
@@ -41,30 +43,30 @@ export default function ProjectBreakdown({ projectBreakdown, isDULeader }: Props
           <thead className="bg-gray-50 border-b">
             <tr>
               <th className="text-left px-4 py-2.5 font-medium text-gray-600">
-                Project
+                {t.dashboard.project}
               </th>
               <th className="text-left px-4 py-2.5 font-medium text-gray-600 hidden sm:table-cell">
-                Client
+                {t.dashboard.client}
               </th>
               <th className="text-left px-4 py-2.5 font-medium text-gray-600 hidden md:table-cell">
-                Market
+                {t.dashboard.market}
               </th>
               <th className="text-right px-4 py-2.5 font-medium text-gray-600">
-                HC
+                {t.dashboard.headcount}
               </th>
               {isDULeader && (
                 <>
                   <th className="text-right px-4 py-2.5 font-medium text-gray-600">
-                    Revenue
+                    {t.dashboard.revenue}
                   </th>
                   <th className="text-right px-4 py-2.5 font-medium text-gray-600">
-                    Cost
+                    {t.dashboard.cost}
                   </th>
                   <th className="text-right px-4 py-2.5 font-medium text-gray-600">
-                    Margin
+                    {t.dashboard.margin}
                   </th>
                   <th className="text-right px-4 py-2.5 font-medium text-gray-600">
-                    Margin%
+                    {t.dashboard.marginPct}
                   </th>
                 </>
               )}
@@ -77,7 +79,7 @@ export default function ProjectBreakdown({ projectBreakdown, isDULeader }: Props
                   colSpan={isDULeader ? 8 : 4}
                   className="px-4 py-8 text-center text-gray-400"
                 >
-                  No active projects yet.
+                  {t.dashboard.noActiveProjects}
                 </td>
               </tr>
             )}
@@ -134,7 +136,7 @@ export default function ProjectBreakdown({ projectBreakdown, isDULeader }: Props
             <tfoot className="border-t bg-gray-50">
               <tr>
                 <td className="px-4 py-2.5 font-semibold text-gray-700 text-sm">
-                  Total
+                  {t.common.total}
                 </td>
                 <td className="hidden sm:table-cell" />
                 <td className="hidden md:table-cell" />

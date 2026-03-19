@@ -10,6 +10,7 @@ import {
   CartesianGrid,
   ResponsiveContainer,
 } from "recharts";
+import { useTranslations } from "@/i18n";
 import type { ProjectBreakdownItem } from "@/actions/dashboard.actions";
 
 interface Props {
@@ -37,18 +38,19 @@ interface CustomTooltipProps {
 }
 
 function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
+  const { t } = useTranslations();
   if (!active || !payload?.length) return null;
-  const revenue = payload.find((p) => p.name === "Revenue")?.value ?? 0;
-  const cost = payload.find((p) => p.name === "Cost")?.value ?? 0;
+  const revenue = payload.find((p) => p.name === t.dashboard.revenue)?.value ?? 0;
+  const cost = payload.find((p) => p.name === t.dashboard.cost)?.value ?? 0;
   const margin = revenue - cost;
   const marginPct = revenue > 0 ? ((margin / revenue) * 100).toFixed(1) : "0";
   return (
     <div className="bg-white border rounded-lg p-3 shadow-lg text-xs space-y-1">
       <p className="font-semibold text-gray-800">{label}</p>
-      <p className="text-blue-600">Revenue: {fmtUSD(revenue)}</p>
-      <p className="text-orange-500">Cost: {fmtUSD(cost)}</p>
+      <p className="text-blue-600">{t.dashboard.revenue}: {fmtUSD(revenue)}</p>
+      <p className="text-orange-500">{t.dashboard.cost}: {fmtUSD(cost)}</p>
       <p className={margin >= 0 ? "text-green-600" : "text-red-600"}>
-        Margin: {fmtUSD(margin)} ({marginPct}%)
+        {t.dashboard.margin}: {fmtUSD(margin)} ({marginPct}%)
       </p>
     </div>
   );
@@ -60,15 +62,16 @@ function HeadcountByProject({
 }: {
   projectBreakdown: ProjectBreakdownItem[];
 }) {
+  const { t } = useTranslations();
   const data = projectBreakdown.map((p) => ({
     name: truncate(p.projectName),
-    Headcount: p.headcount,
+    [t.dashboard.headcount]: p.headcount,
   }));
 
   if (data.length === 0) {
     return (
       <div className="flex items-center justify-center h-48 text-gray-400 text-sm">
-        No active assignments
+        {t.dashboard.noActiveAssignments}
       </div>
     );
   }
@@ -88,7 +91,7 @@ function HeadcountByProject({
         <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
         <Tooltip />
         <Legend />
-        <Bar dataKey="Headcount" fill="#3b82f6" radius={[3, 3, 0, 0]} />
+        <Bar dataKey={t.dashboard.headcount} fill="#3b82f6" radius={[3, 3, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -98,11 +101,13 @@ export default function RevenueByProject({
   projectBreakdown,
   isDULeader,
 }: Props) {
+  const { t } = useTranslations();
+
   if (!isDULeader) {
     return (
       <div className="bg-white rounded-lg border p-4 shadow-sm">
         <h3 className="text-sm font-semibold text-gray-700 mb-3">
-          Headcount by Project
+          {t.dashboard.headcountByProject}
         </h3>
         <HeadcountByProject projectBreakdown={projectBreakdown} />
       </div>
@@ -111,18 +116,18 @@ export default function RevenueByProject({
 
   const data = projectBreakdown.map((p) => ({
     name: truncate(p.projectName),
-    Revenue: p.revenue,
-    Cost: p.cost,
+    [t.dashboard.revenue]: p.revenue,
+    [t.dashboard.cost]: p.cost,
   }));
 
   if (data.length === 0) {
     return (
       <div className="bg-white rounded-lg border p-4 shadow-sm">
         <h3 className="text-sm font-semibold text-gray-700 mb-3">
-          Revenue by Project
+          {t.dashboard.revenueByProject}
         </h3>
         <div className="flex items-center justify-center h-48 text-gray-400 text-sm">
-          No active assignments
+          {t.dashboard.noActiveAssignments}
         </div>
       </div>
     );
@@ -131,7 +136,7 @@ export default function RevenueByProject({
   return (
     <div className="bg-white rounded-lg border p-4 shadow-sm">
       <h3 className="text-sm font-semibold text-gray-700 mb-3">
-        Revenue vs Cost by Project
+        {t.dashboard.revenueVsCostByProject}
       </h3>
       <ResponsiveContainer width="100%" height={240}>
         <BarChart data={data} margin={{ top: 4, right: 8, bottom: 4, left: 8 }}>
@@ -150,8 +155,8 @@ export default function RevenueByProject({
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend />
-          <Bar dataKey="Revenue" fill="#3b82f6" radius={[3, 3, 0, 0]} />
-          <Bar dataKey="Cost" fill="#f97316" radius={[3, 3, 0, 0]} />
+          <Bar dataKey={t.dashboard.revenue} fill="#3b82f6" radius={[3, 3, 0, 0]} />
+          <Bar dataKey={t.dashboard.cost} fill="#f97316" radius={[3, 3, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

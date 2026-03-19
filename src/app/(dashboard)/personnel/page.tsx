@@ -3,12 +3,16 @@ import { auth } from "@/lib/auth";
 import { getPersonnel } from "@/actions/personnel.actions";
 import { getFormLookups } from "@/actions/lookup.actions";
 import PersonnelTable from "@/components/features/personnel/PersonnelTable";
+import { getTranslations } from "@/i18n/server";
+import { cookies } from "next/headers";
 
 export const metadata: Metadata = {
-  title: "Personnel — NTQ Vendor Mgmt",
+  title: "Nhân sự — NTQ Vendor Mgmt",
 };
 
 export default async function PersonnelPage() {
+  const cookieStore = await cookies();
+  const t = getTranslations(cookieStore.get("locale")?.value);
   const [session, personnel, lookups] = await Promise.all([
     auth(),
     getPersonnel(),
@@ -20,7 +24,7 @@ export default async function PersonnelPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Personnel</h1>
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">{t.personnel.title}</h1>
       <PersonnelTable
         personnel={personnel}
         isDULeader={isDULeader}

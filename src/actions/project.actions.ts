@@ -1,10 +1,13 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireAuth, requireRole } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
 import { ProjectSchema } from "@/lib/validations";
+import { getErrorMessage } from "@/lib/utils";
+import type { ActionResult } from "@/types";
 import type { z } from "zod";
+import type { ProjectStatus } from "@prisma/client";
 
 export type ProjectInput = z.infer<typeof ProjectSchema>;
 
@@ -15,8 +18,8 @@ export async function getProjects(filter?: {
 }) {
   return db.project.findMany({
     where: {
-      ...(filter?.status && { status: filter.status as never }),
-      ...(filter?.market && { market: filter.market as never }),
+      ...(filter?.status && { status: filter.status as ProjectStatus }),
+      ...(filter?.market && { marketCode: filter.market }),
       ...(filter?.search && {
         OR: [
           { name: { contains: filter.search, mode: "insensitive" } },
@@ -53,39 +56,45 @@ export async function getProjectById(id: string) {
   });
 }
 
-export async function createProject(data: ProjectInput) {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
-
-  const validated = ProjectSchema.parse(data);
-  const project = await db.project.create({
-    data: { ...validated, createdById: session.user.id },
-  });
-
-  revalidatePath("/projects");
-  return { success: true, project };
+export async function createProject(
+  data: ProjectInput
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    const session = await requireAuth();
+    const validated = ProjectSchema.parse(data);
+    const project = await db.project.create({
+      data: { ...validated, createdById: session.user.id },
+    });
+    revalidatePath("/projects");
+    return { success: true, data: { id: project.id } };
+  } catch (error) {
+    return { success: false, error: getErrorMessage(error) };
+  }
 }
 
-export async function updateProject(id: string, data: ProjectInput) {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
-
-  const validated = ProjectSchema.parse(data);
-  const project = await db.project.update({ where: { id }, data: validated });
-
-  revalidatePath("/projects");
-  revalidatePath(`/projects/${id}`);
-  return { success: true, project };
+export async function updateProject(
+  id: string,
+  data: ProjectInput
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    await requireAuth();
+    const validated = ProjectSchema.parse(data);
+    const project = await db.project.update({ where: { id }, data: validated });
+    revalidatePath("/projects");
+    revalidatePath(`/projects/${id}`);
+    return { success: true, data: { id: project.id } };
+  } catch (error) {
+    return { success: false, error: getErrorMessage(error) };
+  }
 }
 
-export async function softDeleteProject(id: string) {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
-
-  const role = (session.user as { role?: string }).role;
-  if (role !== "DU_LEADER") throw new Error("Forbidden");
-
-  await db.project.update({ where: { id }, data: { status: "ENDED" } });
-  revalidatePath("/projects");
-  return { success: true };
+export async function softDeleteProject(id: string): Promise<ActionResult> {
+  try {
+    await requireRole("DU_LEADER");
+    await db.project.update({ where: { id }, data: { status: "ENDED" } });
+    revalidatePath("/projects");
+    return { success: true, data: undefined };
+  } catch (error) {
+    return { success: false, error: getErrorMessage(error) };
+  }
 }

@@ -7,7 +7,7 @@ export const VendorSchema = z.object({
   contactEmail: z.string().email("Invalid email"),
   contactPhone: z.string().optional(),
   companySize: z.number().int().positive().optional(),
-  market: z.enum(["ENGLISH", "JAPAN", "KOREA", "OTHER"]).default("ENGLISH"),
+  marketCode: z.string().default("ENGLISH"),
   languageStrength: z.array(z.string()).default([]),
   status: z.enum(["ACTIVE", "INACTIVE", "ON_HOLD"]).default("ACTIVE"),
   startDate: z.date().optional(),
@@ -19,9 +19,9 @@ export const PersonnelSchema = z.object({
   vendorId: z.string().min(1),
   fullName: z.string().min(1, "Full name is required"),
   jobTypeId: z.string().min(1, "Job type is required"),
-  techStackId: z.string().min(1, "Tech stack is required"),
+  techStackId: z.string().optional().nullable(),   // Optional — BA/PM may not have a stack
   levelId: z.string().min(1, "Level is required"),
-  domainId: z.string().min(1, "Domain is required"),
+  domainId: z.string().optional().nullable(),       // Optional — not all roles need domain
   englishLevel: z
     .enum(["BASIC", "INTERMEDIATE", "ADVANCED", "FLUENT"])
     .default("INTERMEDIATE"),
@@ -40,7 +40,7 @@ export const PersonnelSchema = z.object({
 // ─── Project ──────────────────────────────────────────────────────────────────
 export const ProjectSchema = z.object({
   name: z.string().min(1, "Project name is required"),
-  market: z.enum(["ENGLISH", "JAPAN", "KOREA", "OTHER"]).default("ENGLISH"),
+  marketCode: z.string().min(1, "Market is required").default("ENGLISH"),
   clientName: z.string().min(1, "Client name is required"),
   startDate: z.date(),
   endDate: z.date().optional(),
@@ -67,7 +67,7 @@ export const RateNormSchema = z.object({
   techStackId: z.string().min(1),
   levelId: z.string().min(1),
   domainId: z.string().min(1),
-  market: z.enum(["ENGLISH", "JAPAN", "KOREA", "OTHER"]).default("ENGLISH"),
+  marketCode: z.string().min(1).default("ENGLISH"),
   rateMin: z.number().positive(),
   rateNorm: z.number().positive(),
   rateMax: z.number().positive(),
@@ -78,8 +78,23 @@ export const RateNormSchema = z.object({
 export const SystemConfigSchema = z.object({
   key: z.enum([
     "OVERHEAD_RATE_PCT",
-    "MARKET_RATE_FACTOR_PCT",
     "DRIFT_ALERT_THRESHOLD_PCT",
   ]),
   value: z.string().min(1),
 });
+
+// ─── MarketConfig ──────────────────────────────────────────────────────────────
+export const MarketConfigSchema = z.object({
+  code: z
+    .string()
+    .min(1)
+    .max(10)
+    .regex(/^[A-Z0-9_]+$/, "Code must be uppercase letters, numbers, or underscores"),
+  name: z.string().min(1).max(100),
+  marketRateFactorPct: z.number().min(0).max(1),
+  isActive: z.boolean().default(true),
+  order: z.number().int().default(0),
+});
+
+export type MarketConfigInput = z.infer<typeof MarketConfigSchema>;
+

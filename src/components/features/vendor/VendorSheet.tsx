@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { createVendor, updateVendor } from "@/actions/vendor.actions";
+import { useTranslations } from "@/i18n";
 import type { Vendor } from "@/types";
 
 // Form-specific schema: dates/numbers as strings for HTML inputs
@@ -16,7 +18,6 @@ const VendorFormSchema = z.object({
   contactEmail: z.string().email("Invalid email"),
   contactPhone: z.string().optional(),
   companySize: z.string().optional(),
-  market: z.enum(["ENGLISH", "JAPAN", "KOREA", "OTHER"]),
   languageStrength: z.array(z.string()),
   status: z.enum(["ACTIVE", "INACTIVE", "ON_HOLD"]),
   startDate: z.string().optional(),
@@ -32,7 +33,6 @@ function toFormValues(vendor: Vendor): VendorFormValues {
     contactEmail: vendor.contactEmail,
     contactPhone: vendor.contactPhone ?? "",
     companySize: vendor.companySize?.toString() ?? "",
-    market: vendor.market,
     languageStrength: vendor.languageStrength,
     status: vendor.status,
     startDate: vendor.startDate
@@ -48,7 +48,6 @@ const emptyValues: VendorFormValues = {
   contactEmail: "",
   contactPhone: "",
   companySize: "",
-  market: "ENGLISH",
   languageStrength: [],
   status: "ACTIVE",
   startDate: "",
@@ -65,6 +64,8 @@ export default function VendorSheet({ open, onClose, vendor }: VendorSheetProps)
   const [tagInput, setTagInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const isEdit = !!vendor;
+  const router = useRouter();
+  const { t } = useTranslations();
 
   const form = useForm<VendorFormValues>({
     resolver: zodResolver(VendorFormSchema),
@@ -106,35 +107,34 @@ export default function VendorSheet({ open, onClose, vendor }: VendorSheetProps)
 
   async function onSubmit(data: VendorFormValues) {
     setSubmitting(true);
-    try {
-      const payload = {
-        name: data.name,
-        contactName: data.contactName,
-        contactEmail: data.contactEmail,
-        contactPhone: data.contactPhone || undefined,
-        companySize:
-          data.companySize && data.companySize !== ""
-            ? parseInt(data.companySize, 10)
-            : undefined,
-        market: data.market,
-        languageStrength: data.languageStrength,
-        status: data.status,
-        startDate: data.startDate ? new Date(data.startDate) : undefined,
-        notes: data.notes || undefined,
-      };
+    const payload = {
+      name: data.name,
+      contactName: data.contactName,
+      contactEmail: data.contactEmail,
+      contactPhone: data.contactPhone || undefined,
+      companySize:
+        data.companySize && data.companySize !== ""
+          ? parseInt(data.companySize, 10)
+          : undefined,
+      marketCode: "ENGLISH",
+      languageStrength: data.languageStrength,
+      status: data.status,
+      startDate: data.startDate ? new Date(data.startDate) : undefined,
+      notes: data.notes || undefined,
+    };
 
-      if (isEdit && vendor) {
-        await updateVendor(vendor.id, payload);
-        toast.success("Vendor updated successfully");
-      } else {
-        await createVendor(payload);
-        toast.success("Vendor created successfully");
-      }
+    const result = isEdit && vendor
+      ? await updateVendor(vendor.id, payload)
+      : await createVendor(payload);
+
+    setSubmitting(false);
+
+    if (result.success) {
+      toast.success(isEdit ? t.vendor.updatedSuccess : t.vendor.createdSuccess);
+      router.refresh();
       onClose();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setSubmitting(false);
+    } else {
+      toast.error(result.error ?? t.common.somethingWentWrong);
     }
   }
 
@@ -153,7 +153,7 @@ export default function VendorSheet({ open, onClose, vendor }: VendorSheetProps)
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <h2 className="text-lg font-semibold text-gray-900">
-            {isEdit ? "Edit Vendor" : "Add Vendor"}
+            {isEdit ? t.vendor.editVendor : t.vendor.addVendor}
           </h2>
           <button
             onClick={onClose}
@@ -171,7 +171,7 @@ export default function VendorSheet({ open, onClose, vendor }: VendorSheetProps)
           {/* Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Company Name <span className="text-red-500">*</span>
+              {t.vendor.companyName} <span className="text-red-500">*</span>
             </label>
             <input
               {...register("name")}
@@ -186,7 +186,7 @@ export default function VendorSheet({ open, onClose, vendor }: VendorSheetProps)
           {/* Contact Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Contact Name <span className="text-red-500">*</span>
+              {t.vendor.contactName} <span className="text-red-500">*</span>
             </label>
             <input
               {...register("contactName")}
@@ -201,7 +201,7 @@ export default function VendorSheet({ open, onClose, vendor }: VendorSheetProps)
           {/* Contact Email */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Contact Email <span className="text-red-500">*</span>
+              {t.vendor.contactEmail} <span className="text-red-500">*</span>
             </label>
             <input
               {...register("contactEmail")}
@@ -217,7 +217,7 @@ export default function VendorSheet({ open, onClose, vendor }: VendorSheetProps)
           {/* Contact Phone */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Contact Phone
+              {t.vendor.contactPhone}
             </label>
             <input
               {...register("contactPhone")}
@@ -226,41 +226,25 @@ export default function VendorSheet({ open, onClose, vendor }: VendorSheetProps)
             />
           </div>
 
-          {/* Market + Status row */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Market
-              </label>
-              <select
-                {...register("market")}
-                className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="ENGLISH">English</option>
-                <option value="JAPAN">Japan</option>
-                <option value="KOREA">Korea</option>
-                <option value="OTHER">Other</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Status
-              </label>
-              <select
-                {...register("status")}
-                className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="ACTIVE">Active</option>
-                <option value="INACTIVE">Inactive</option>
-                <option value="ON_HOLD">On Hold</option>
-              </select>
-            </div>
+          {/* Status */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t.common.status}
+            </label>
+            <select
+              {...register("status")}
+              className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="ACTIVE">{t.common.statusActive}</option>
+              <option value="INACTIVE">{t.common.statusInactive}</option>
+              <option value="ON_HOLD">{t.common.statusOnHold}</option>
+            </select>
           </div>
 
           {/* Company Size */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Company Size
+              {t.vendor.companySize}
             </label>
             <input
               {...register("companySize")}
@@ -274,7 +258,7 @@ export default function VendorSheet({ open, onClose, vendor }: VendorSheetProps)
           {/* Start Date */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Start Date
+              {t.vendor.startDate}
             </label>
             <input
               {...register("startDate")}
@@ -286,7 +270,7 @@ export default function VendorSheet({ open, onClose, vendor }: VendorSheetProps)
           {/* Language Strength (tags) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Language Strength
+              {t.vendor.languageStrength}
             </label>
             <div className="flex gap-2 mb-2">
               <input
@@ -299,10 +283,10 @@ export default function VendorSheet({ open, onClose, vendor }: VendorSheetProps)
                   }
                 }}
                 className="flex-1 border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="e.g. English, Japanese"
+                placeholder={t.vendor.languagePlaceholder}
               />
               <Button type="button" variant="outline" size="sm" onClick={addTag}>
-                Add
+                {t.common.add}
               </Button>
             </div>
             {languageStrength.length > 0 && (
@@ -329,13 +313,13 @@ export default function VendorSheet({ open, onClose, vendor }: VendorSheetProps)
           {/* Notes */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Notes
+              {t.common.notes}
             </label>
             <textarea
               {...register("notes")}
               rows={3}
               className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              placeholder="Additional notes..."
+              placeholder="..."
             />
           </div>
         </form>
@@ -343,16 +327,16 @@ export default function VendorSheet({ open, onClose, vendor }: VendorSheetProps)
         {/* Footer */}
         <div className="px-6 py-4 border-t flex justify-end gap-3">
           <Button variant="outline" onClick={onClose} disabled={submitting}>
-            Cancel
+            {t.common.cancel}
           </Button>
           <Button onClick={handleSubmit(onSubmit)} disabled={submitting}>
             {submitting
               ? isEdit
-                ? "Saving..."
-                : "Creating..."
+                ? t.common.saving
+                : t.common.creating
               : isEdit
-                ? "Save Changes"
-                : "Create Vendor"}
+                ? t.common.save
+                : t.common.create}
           </Button>
         </div>
       </div>

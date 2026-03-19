@@ -1,7 +1,3 @@
-// prisma/schema.prisma
-// NTQ Vendor Management System — Phase 1
-// Last updated: 2026-03-17
-
 generator client {
   provider = "prisma-client-js"
   output   = "../node_modules/.prisma/client"
@@ -11,41 +7,31 @@ datasource db {
   provider = "postgresql"
 }
 
-// ─── AUTH ─────────────────────────────────────────────────────────────────────
-
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String
-  role      UserRole @default(VENDOR_PIC)
-  password  String   // hashed with bcrypt
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  createdVendors   Vendor[]
+  id               String         @id @default(cuid())
+  email            String         @unique
+  name             String
+  role             UserRole       @default(VENDOR_PIC)
+  password         String
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
   createdPersonnel Personnel[]
   createdProjects  Project[]
   rateAlerts       RateAlert[]
   rateNormEdits    RateNorm[]
   configEdits      SystemConfig[]
+  createdVendors   Vendor[]
+  cvUploads        PersonnelCV[]
 }
-
-enum UserRole {
-  DU_LEADER
-  VENDOR_PIC
-}
-
-// ─── RATE TAXONOMY (Master lookup tables) ─────────────────────────────────────
 
 model JobType {
   id                   String                @id @default(cuid())
   name                 String                @unique
   order                Int                   @default(0)
   personnel            Personnel[]
-  rateNorms            RateNorm[]
   projectRateOverrides ProjectRateOverride[]
   rateAlerts           RateAlert[]
+  rateNorms            RateNorm[]
 }
 
 model TechStack {
@@ -53,9 +39,9 @@ model TechStack {
   name                 String                @unique
   order                Int                   @default(0)
   personnel            Personnel[]
-  rateNorms            RateNorm[]
   projectRateOverrides ProjectRateOverride[]
   rateAlerts           RateAlert[]
+  rateNorms            RateNorm[]
 }
 
 model Level {
@@ -63,9 +49,9 @@ model Level {
   name                 String                @unique
   order                Int
   personnel            Personnel[]
-  rateNorms            RateNorm[]
   projectRateOverrides ProjectRateOverride[]
   rateAlerts           RateAlert[]
+  rateNorms            RateNorm[]
 }
 
 model Domain {
@@ -73,37 +59,43 @@ model Domain {
   name                 String                @unique
   order                Int                   @default(0)
   personnel            Personnel[]
-  rateNorms            RateNorm[]
   projectRateOverrides ProjectRateOverride[]
+  rateNorms            RateNorm[]
 }
 
-// ─── RATE ENGINE ──────────────────────────────────────────────────────────────
+model MarketConfig {
+  id                  String   @id @default(cuid())
+  code                String   @unique
+  name                String
+  marketRateFactorPct Float    @default(0.80)
+  isActive            Boolean  @default(true)
+  order               Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
 
 model RateNorm {
-  id          String   @id @default(cuid())
-  jobTypeId   String
-  techStackId String
-  levelId     String
-  domainId    String
-  market      Market   @default(ENGLISH)
-
-  rateMin  Float
-  rateNorm Float
-  rateMax  Float
-
-  effectiveDate DateTime @default(now())
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id            String    @id @default(cuid())
+  jobTypeId     String
+  techStackId   String
+  levelId       String
+  domainId      String
+  rateMin       Float
+  rateNorm      Float
+  rateMax       Float
+  effectiveDate DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   createdById   String
+  marketCode    String    @default("ENGLISH")
+  createdBy     User      @relation(fields: [createdById], references: [id])
+  domain        Domain    @relation(fields: [domainId], references: [id])
+  jobType       JobType   @relation(fields: [jobTypeId], references: [id])
+  level         Level     @relation(fields: [levelId], references: [id])
+  techStack     TechStack @relation(fields: [techStackId], references: [id])
 
-  jobType   JobType   @relation(fields: [jobTypeId], references: [id])
-  techStack TechStack @relation(fields: [techStackId], references: [id])
-  level     Level     @relation(fields: [levelId], references: [id])
-  domain    Domain    @relation(fields: [domainId], references: [id])
-  createdBy User      @relation(fields: [createdById], references: [id])
-
-  @@unique([jobTypeId, techStackId, levelId, domainId, market])
-  @@index([market])
+  @@unique([jobTypeId, techStackId, levelId, domainId, marketCode])
+  @@index([marketCode])
 }
 
 model SystemConfig {
@@ -112,66 +104,45 @@ model SystemConfig {
   value       String
   updatedAt   DateTime  @updatedAt
   updatedById String
-
-  updatedBy User @relation(fields: [updatedById], references: [id])
-}
-
-enum ConfigKey {
-  OVERHEAD_RATE_PCT
-  MARKET_RATE_FACTOR_PCT
-  DRIFT_ALERT_THRESHOLD_PCT
+  updatedBy   User      @relation(fields: [updatedById], references: [id])
 }
 
 model ProjectRateOverride {
-  id          String @id @default(cuid())
-  projectId   String
-  jobTypeId   String
-  techStackId String
-  levelId     String
-  domainId    String
-
+  id                String    @id @default(cuid())
+  projectId         String
+  jobTypeId         String
+  techStackId       String
+  levelId           String
+  domainId          String
   customBillingRate Float
   setById           String
-  setAt             DateTime @default(now())
-
-  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  jobType   JobType   @relation(fields: [jobTypeId], references: [id])
-  techStack TechStack @relation(fields: [techStackId], references: [id])
-  level     Level     @relation(fields: [levelId], references: [id])
-  domain    Domain    @relation(fields: [domainId], references: [id])
+  setAt             DateTime  @default(now())
+  domain            Domain    @relation(fields: [domainId], references: [id])
+  jobType           JobType   @relation(fields: [jobTypeId], references: [id])
+  level             Level     @relation(fields: [levelId], references: [id])
+  project           Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  techStack         TechStack @relation(fields: [techStackId], references: [id])
 
   @@unique([projectId, jobTypeId, techStackId, levelId, domainId])
 }
 
 model RateAlert {
-  id          String @id @default(cuid())
-  jobTypeId   String
-  techStackId String
-  levelId     String
-
-  normRate              Float
-  actualAvgVendorRate   Float
-  driftPct              Float
-
-  triggeredById String
-  triggeredAt   DateTime    @default(now())
-  status        AlertStatus @default(PENDING)
-  note          String?
-
-  jobType     JobType   @relation(fields: [jobTypeId], references: [id])
-  techStack   TechStack @relation(fields: [techStackId], references: [id])
-  level       Level     @relation(fields: [levelId], references: [id])
-  triggeredBy User      @relation(fields: [triggeredById], references: [id])
+  id                  String      @id @default(cuid())
+  jobTypeId           String
+  techStackId         String
+  levelId             String
+  normRate            Float
+  actualAvgVendorRate Float
+  driftPct            Float
+  triggeredById       String
+  triggeredAt         DateTime    @default(now())
+  status              AlertStatus @default(PENDING)
+  note                String?
+  jobType             JobType     @relation(fields: [jobTypeId], references: [id])
+  level               Level       @relation(fields: [levelId], references: [id])
+  techStack           TechStack   @relation(fields: [techStackId], references: [id])
+  triggeredBy         User        @relation(fields: [triggeredById], references: [id])
 }
-
-enum AlertStatus {
-  PENDING
-  FLAGGED_FOR_DU_LEADER
-  RESOLVED
-  DISMISSED
-}
-
-// ─── CORE ENTITIES ────────────────────────────────────────────────────────────
 
 model Vendor {
   id               String       @id @default(cuid())
@@ -180,7 +151,6 @@ model Vendor {
   contactEmail     String
   contactPhone     String?
   companySize      Int?
-  market           Market       @default(ENGLISH)
   languageStrength String[]
   status           VendorStatus @default(ACTIVE)
   startDate        DateTime?
@@ -188,22 +158,9 @@ model Vendor {
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
   createdById      String
-
-  createdBy User        @relation(fields: [createdById], references: [id])
-  personnel Personnel[]
-}
-
-enum VendorStatus {
-  ACTIVE
-  INACTIVE
-  ON_HOLD
-}
-
-enum Market {
-  ENGLISH
-  JAPAN
-  KOREA
-  OTHER
+  marketCode       String       @default("ENGLISH")
+  personnel        Personnel[]
+  createdBy        User         @relation(fields: [createdById], references: [id])
 }
 
 model Personnel {
@@ -211,9 +168,9 @@ model Personnel {
   vendorId         String
   fullName         String
   jobTypeId        String
-  techStackId      String
+  techStackId      String?         // Optional — BA/PM may not have a tech stack
   levelId          String
-  domainId         String
+  domainId         String?         // Optional — not all roles need domain
   englishLevel     EnglishLevel    @default(INTERMEDIATE)
   leadership       Boolean         @default(false)
   leadershipNote   String?
@@ -224,14 +181,93 @@ model Personnel {
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
   createdById      String
+  assignments      Assignment[]
+  cvs              PersonnelCV[]
+  createdBy        User            @relation(fields: [createdById], references: [id])
+  domain           Domain?         @relation(fields: [domainId], references: [id])
+  jobType          JobType         @relation(fields: [jobTypeId], references: [id])
+  level            Level           @relation(fields: [levelId], references: [id])
+  techStack        TechStack?      @relation(fields: [techStackId], references: [id])
+  vendor           Vendor          @relation(fields: [vendorId], references: [id])
+}
 
-  vendor      Vendor       @relation(fields: [vendorId], references: [id])
-  jobType     JobType      @relation(fields: [jobTypeId], references: [id])
-  techStack   TechStack    @relation(fields: [techStackId], references: [id])
-  level       Level        @relation(fields: [levelId], references: [id])
-  domain      Domain       @relation(fields: [domainId], references: [id])
-  createdBy   User         @relation(fields: [createdById], references: [id])
-  assignments Assignment[]
+model PersonnelCV {
+  id          String    @id @default(cuid())
+  personnelId String
+  label       String    // e.g. "CV v1 - Backend", "Updated Mar 2026"
+  url         String    // Google Drive link, OneDrive, etc.
+  isLatest    Boolean   @default(false)
+  notes       String?
+  uploadedAt  DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  uploadedById String
+  personnel   Personnel @relation(fields: [personnelId], references: [id], onDelete: Cascade)
+  uploadedBy  User      @relation(fields: [uploadedById], references: [id])
+
+  @@index([personnelId])
+}
+
+
+model Project {
+  id            String                @id @default(cuid())
+  name          String
+  clientName    String
+  startDate     DateTime
+  endDate       DateTime?
+  status        ProjectStatus         @default(ACTIVE)
+  notes         String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  createdById   String
+  marketCode    String                @default("ENGLISH")
+  assignments   Assignment[]
+  createdBy     User                  @relation(fields: [createdById], references: [id])
+  rateOverrides ProjectRateOverride[]
+}
+
+model Assignment {
+  id                  String           @id @default(cuid())
+  personnelId         String
+  projectId           String
+  roleInProject       String?
+  billingRateOverride Float?
+  billingRateNote     String?
+  vendorRateOverride  Float?
+  startDate           DateTime
+  endDate             DateTime?
+  status              AssignmentStatus @default(ACTIVE)
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  personnel           Personnel        @relation(fields: [personnelId], references: [id])
+  project             Project          @relation(fields: [projectId], references: [id])
+
+  @@index([projectId])
+  @@index([personnelId])
+}
+
+enum UserRole {
+  DU_LEADER
+  VENDOR_PIC
+}
+
+enum ConfigKey {
+  OVERHEAD_RATE_PCT
+  MARKET_RATE_FACTOR_PCT
+  DRIFT_ALERT_THRESHOLD_PCT
+}
+
+enum AlertStatus {
+  PENDING
+  FLAGGED_FOR_DU_LEADER
+  RESOLVED
+  DISMISSED
+}
+
+enum VendorStatus {
+  ACTIVE
+  INACTIVE
+  ON_HOLD
 }
 
 enum EnglishLevel {
@@ -256,51 +292,10 @@ enum InterviewStatus {
   FAILED
 }
 
-model Project {
-  id          String        @id @default(cuid())
-  name        String
-  market      Market        @default(ENGLISH)
-  clientName  String
-  startDate   DateTime
-  endDate     DateTime?
-  status      ProjectStatus @default(ACTIVE)
-  notes       String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  createdById String
-
-  createdBy     User                  @relation(fields: [createdById], references: [id])
-  assignments   Assignment[]
-  rateOverrides ProjectRateOverride[]
-}
-
 enum ProjectStatus {
   ACTIVE
   ON_HOLD
   ENDED
-}
-
-model Assignment {
-  id            String @id @default(cuid())
-  personnelId   String
-  projectId     String
-  roleInProject String?
-
-  billingRateOverride Float?
-  billingRateNote     String?
-  vendorRateOverride  Float?
-
-  startDate DateTime
-  endDate   DateTime?
-  status    AssignmentStatus @default(ACTIVE)
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-
-  personnel Personnel @relation(fields: [personnelId], references: [id])
-  project   Project   @relation(fields: [projectId], references: [id])
-
-  @@index([projectId])
-  @@index([personnelId])
 }
 
 enum AssignmentStatus {

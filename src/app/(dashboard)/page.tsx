@@ -6,12 +6,16 @@ import RevenueByProject from "@/components/features/dashboard/RevenueByProject";
 import HeadcountByVendor from "@/components/features/dashboard/HeadcountByVendor";
 import ProjectBreakdown from "@/components/features/dashboard/ProjectBreakdown";
 import AlertSummary from "@/components/features/dashboard/AlertSummary";
+import { getTranslations } from "@/i18n/server";
+import { cookies } from "next/headers";
 
 export const metadata: Metadata = {
-  title: "Dashboard — NTQ Vendor Mgmt",
+  title: "Tổng quan — NTQ Vendor Mgmt",
 };
 
 export default async function DashboardPage() {
+  const cookieStore = await cookies();
+  const t = getTranslations(cookieStore.get("locale")?.value);
   const [session, data] = await Promise.all([auth(), getDashboardData()]);
   const isDULeader =
     (session?.user as { role?: string })?.role === "DU_LEADER";
@@ -19,9 +23,9 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t.dashboard.title}</h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          Welcome back, {session?.user?.name}
+          {t.dashboard.welcome} {session?.user?.name}
         </p>
       </div>
 

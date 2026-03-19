@@ -5,18 +5,12 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { softDeleteVendor } from "@/actions/vendor.actions";
+import { useTranslations } from "@/i18n";
 import VendorSheet from "./VendorSheet";
 import type { Vendor, PersonnelStatus } from "@/types";
 
 type VendorRow = Vendor & {
   personnel: { id: string; status: PersonnelStatus }[];
-};
-
-const MARKET_LABELS: Record<string, string> = {
-  ENGLISH: "English",
-  JAPAN: "Japan",
-  KOREA: "Korea",
-  OTHER: "Other",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -32,22 +26,27 @@ interface VendorTableProps {
 
 export default function VendorTable({ vendors, isDULeader }: VendorTableProps) {
   const [search, setSearch] = useState("");
-  const [marketFilter, setMarketFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<VendorRow | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const { t } = useTranslations();
+
+  const STATUS_LABELS: Record<string, string> = {
+    ACTIVE: t.common.statusActive,
+    INACTIVE: t.common.statusInactive,
+    ON_HOLD: t.common.statusOnHold,
+  };
 
   const filtered = useMemo(() => {
     return vendors.filter((v) => {
       const matchSearch =
         !search || v.name.toLowerCase().includes(search.toLowerCase());
-      const matchMarket = !marketFilter || v.market === marketFilter;
       const matchStatus = !statusFilter || v.status === statusFilter;
-      return matchSearch && matchMarket && matchStatus;
+      return matchSearch && matchStatus;
     });
-  }, [vendors, search, marketFilter, statusFilter]);
+  }, [vendors, search, statusFilter]);
 
   function openCreate() {
     setSelectedVendor(null);
@@ -62,14 +61,13 @@ export default function VendorTable({ vendors, isDULeader }: VendorTableProps) {
   async function handleDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
-    try {
-      await softDeleteVendor(deleteTarget.id);
-      toast.success(`${deleteTarget.name} marked as inactive`);
+    const result = await softDeleteVendor(deleteTarget.id);
+    setDeleting(false);
+    if (result.success) {
+      toast.success(`${deleteTarget.name} ${t.vendor.deactivatedSuccess}`);
       setDeleteTarget(null);
-    } catch {
-      toast.error("Failed to delete vendor");
-    } finally {
-      setDeleting(false);
+    } else {
+      toast.error(result.error);
     }
   }
 
@@ -79,52 +77,33 @@ export default function VendorTable({ vendors, isDULeader }: VendorTableProps) {
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <input
           type="text"
-          placeholder="Search by name..."
+          placeholder={t.vendor.searchPlaceholder}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="border rounded-md px-3 py-1.5 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <select
-          value={marketFilter}
-          onChange={(e) => setMarketFilter(e.target.value)}
-          className="border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">All Markets</option>
-          <option value="ENGLISH">English</option>
-          <option value="JAPAN">Japan</option>
-          <option value="KOREA">Korea</option>
-          <option value="OTHER">Other</option>
-        </select>
-        <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
           className="border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <option value="">All Statuses</option>
-          <option value="ACTIVE">Active</option>
-          <option value="INACTIVE">Inactive</option>
-          <option value="ON_HOLD">On Hold</option>
+          <option value="">{t.common.allStatuses}</option>
+          <option value="ACTIVE">{t.common.statusActive}</option>
+          <option value="INACTIVE">{t.common.statusInactive}</option>
+          <option value="ON_HOLD">{t.common.statusOnHold}</option>
         </select>
         <div className="ml-auto">
-          <Button onClick={openCreate}>+ Add Vendor</Button>
+          <Button onClick={openCreate}>{t.vendor.addVendor}</Button>
         </div>
       </div>
 
       {/* Active filter badges */}
-      {(marketFilter || statusFilter) && (
+      {statusFilter && (
         <div className="flex gap-2 mb-3">
-          {marketFilter && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800">
-              {MARKET_LABELS[marketFilter]}
-              <button onClick={() => setMarketFilter("")} className="hover:text-blue-600">✕</button>
-            </span>
-          )}
-          {statusFilter && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800">
-              {statusFilter}
-              <button onClick={() => setStatusFilter("")} className="hover:text-blue-600">✕</button>
-            </span>
-          )}
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800">
+            {STATUS_LABELS[statusFilter] ?? statusFilter}
+            <button onClick={() => setStatusFilter("")} className="hover:text-blue-600">✕</button>
+          </span>
         </div>
       )}
 
@@ -133,19 +112,18 @@ export default function VendorTable({ vendors, isDULeader }: VendorTableProps) {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Company Name</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Contact</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Market</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Headcount</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">{t.vendor.companyName}</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">{t.vendor.contact}</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">{t.common.status}</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">{t.vendor.headcount}</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">{t.common.actions}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
-                  No vendors found.
+                <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
+                  {t.vendor.noVendors}
                 </td>
               </tr>
             )}
@@ -156,14 +134,11 @@ export default function VendorTable({ vendors, isDULeader }: VendorTableProps) {
                   <div>{vendor.contactName}</div>
                   <div className="text-xs text-gray-400">{vendor.contactEmail}</div>
                 </td>
-                <td className="px-4 py-3 text-gray-600">
-                  {MARKET_LABELS[vendor.market] ?? vendor.market}
-                </td>
                 <td className="px-4 py-3">
                   <span
                     className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[vendor.status] ?? ""}`}
                   >
-                    {vendor.status}
+                    {STATUS_LABELS[vendor.status] ?? vendor.status}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-gray-600">
@@ -175,20 +150,20 @@ export default function VendorTable({ vendors, isDULeader }: VendorTableProps) {
                       href={`/vendors/${vendor.id}`}
                       className="text-blue-600 hover:underline text-xs"
                     >
-                      View
+                      {t.common.view}
                     </Link>
                     <button
                       onClick={() => openEdit(vendor)}
                       className="text-gray-600 hover:text-gray-900 text-xs"
                     >
-                      Edit
+                      {t.common.edit}
                     </button>
                     {isDULeader && (
                       <button
                         onClick={() => setDeleteTarget(vendor)}
                         className="text-red-500 hover:text-red-700 text-xs"
                       >
-                        Delete
+                        {t.common.delete}
                       </button>
                     )}
                   </div>
@@ -213,12 +188,11 @@ export default function VendorTable({ vendors, isDULeader }: VendorTableProps) {
           <div className="fixed inset-0 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Deactivate vendor?
+                {t.vendor.deactivateTitle}
               </h3>
               <p className="text-sm text-gray-600 mb-6">
-                <strong>{deleteTarget.name}</strong> will be marked as{" "}
-                <span className="font-medium text-gray-800">INACTIVE</span>. This action can be
-                reversed by editing the vendor.
+                <strong>{deleteTarget.name}</strong>{" "}
+                {t.vendor.deactivateBody}
               </p>
               <div className="flex justify-end gap-3">
                 <Button
@@ -226,14 +200,14 @@ export default function VendorTable({ vendors, isDULeader }: VendorTableProps) {
                   onClick={() => setDeleteTarget(null)}
                   disabled={deleting}
                 >
-                  Cancel
+                  {t.common.cancel}
                 </Button>
                 <Button
                   variant="destructive"
                   onClick={handleDelete}
                   disabled={deleting}
                 >
-                  {deleting ? "Deactivating..." : "Deactivate"}
+                  {deleting ? t.vendor.deactivating : t.vendor.deactivate}
                 </Button>
               </div>
             </div>

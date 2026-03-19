@@ -1,51 +1,56 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getPersonnel } from "@/actions/personnel.actions";
+import { getTranslations } from "@/i18n/server";
+import { cookies } from "next/headers";
 
 export const metadata: Metadata = {
   title: "Pipeline — NTQ Vendor Mgmt",
 };
 
-const PIPELINE_STAGES = [
-  {
-    key: "NEW",
-    label: "New",
-    headerColor: "bg-gray-100 border-gray-300 text-gray-700",
-    cardColor: "bg-gray-50",
-  },
-  {
-    key: "SCREENING",
-    label: "Screening",
-    headerColor: "bg-yellow-100 border-yellow-300 text-yellow-800",
-    cardColor: "bg-yellow-50",
-  },
-  {
-    key: "TECHNICAL_TEST",
-    label: "Technical Test",
-    headerColor: "bg-orange-100 border-orange-300 text-orange-800",
-    cardColor: "bg-orange-50",
-  },
-  {
-    key: "INTERVIEW",
-    label: "Interview",
-    headerColor: "bg-blue-100 border-blue-300 text-blue-800",
-    cardColor: "bg-blue-50",
-  },
-  {
-    key: "PASSED",
-    label: "Passed",
-    headerColor: "bg-green-100 border-green-300 text-green-800",
-    cardColor: "bg-green-50",
-  },
-  {
-    key: "FAILED",
-    label: "Failed",
-    headerColor: "bg-red-100 border-red-300 text-red-800",
-    cardColor: "bg-red-50",
-  },
-] as const;
-
 export default async function PipelinePage() {
+  const cookieStore = await cookies();
+  const t = getTranslations(cookieStore.get("locale")?.value);
+
+  const PIPELINE_STAGES = [
+    {
+      key: "NEW",
+      label: t.common.interviewNew,
+      headerColor: "bg-gray-100 border-gray-300 text-gray-700",
+      cardColor: "bg-gray-50",
+    },
+    {
+      key: "SCREENING",
+      label: t.common.interviewScreening,
+      headerColor: "bg-yellow-100 border-yellow-300 text-yellow-800",
+      cardColor: "bg-yellow-50",
+    },
+    {
+      key: "TECHNICAL_TEST",
+      label: t.common.interviewTechnicalTest,
+      headerColor: "bg-orange-100 border-orange-300 text-orange-800",
+      cardColor: "bg-orange-50",
+    },
+    {
+      key: "INTERVIEW",
+      label: t.common.interviewInterview,
+      headerColor: "bg-blue-100 border-blue-300 text-blue-800",
+      cardColor: "bg-blue-50",
+    },
+    {
+      key: "PASSED",
+      label: t.common.interviewPassed,
+      headerColor: "bg-green-100 border-green-300 text-green-800",
+      cardColor: "bg-green-50",
+    },
+    {
+      key: "FAILED",
+      label: t.common.interviewFailed,
+      headerColor: "bg-red-100 border-red-300 text-red-800",
+      cardColor: "bg-red-50",
+    },
+  ] as const;
+
   const allPersonnel = await getPersonnel();
   // Exclude fully ended personnel (status=ENDED) from pipeline view
   const pipelinePersonnel = allPersonnel.filter((p) => p.status !== "ENDED");
@@ -65,8 +70,8 @@ export default async function PipelinePage() {
   return (
     <div>
       <div className="flex items-baseline gap-3 mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Pipeline</h1>
-        <span className="text-sm text-gray-500">{total} active candidates</span>
+        <h1 className="text-2xl font-bold text-gray-900">{t.nav.pipeline}</h1>
+        <span className="text-sm text-gray-500">{total} {t.personnel.title.toLowerCase()}</span>
       </div>
 
       <div className="overflow-x-auto pb-4">
@@ -94,7 +99,7 @@ export default async function PipelinePage() {
                 <div className="flex flex-col gap-2 min-h-[200px]">
                   {cards.length === 0 && (
                     <div className="flex-1 rounded-lg border border-dashed border-gray-200 flex items-center justify-center">
-                      <span className="text-xs text-gray-300">Empty</span>
+                      <span className="text-xs text-gray-300">{t.common.noData}</span>
                     </div>
                   )}
                   {cards.map((p) => (

@@ -1,10 +1,16 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireAuth, requireRole } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
 import { PersonnelSchema } from "@/lib/validations";
+import { getErrorMessage } from "@/lib/utils";
+import type { ActionResult } from "@/types";
 import type { z } from "zod";
+import type {
+  PersonnelStatus,
+  InterviewStatus,
+} from "@prisma/client";
 
 export type PersonnelInput = z.infer<typeof PersonnelSchema>;
 
@@ -20,9 +26,9 @@ export async function getPersonnel(filter?: {
   return db.personnel.findMany({
     where: {
       ...(filter?.vendorId && { vendorId: filter.vendorId }),
-      ...(filter?.status && { status: filter.status as never }),
+      ...(filter?.status && { status: filter.status as PersonnelStatus }),
       ...(filter?.interviewStatus && {
-        interviewStatus: filter.interviewStatus as never,
+        interviewStatus: filter.interviewStatus as InterviewStatus,
       }),
       ...(filter?.jobTypeId && { jobTypeId: filter.jobTypeId }),
       ...(filter?.techStackId && { techStackId: filter.techStackId }),
@@ -59,58 +65,68 @@ export async function getPersonnelById(id: string) {
   });
 }
 
-export async function createPersonnel(data: PersonnelInput) {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
-
-  const validated = PersonnelSchema.parse(data);
-  const personnel = await db.personnel.create({
-    data: { ...validated, createdById: session.user.id },
-  });
-
-  revalidatePath("/personnel");
-  revalidatePath(`/vendors/${validated.vendorId}`);
-  return { success: true, personnel };
+export async function createPersonnel(
+  data: PersonnelInput
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    const session = await requireAuth();
+    const validated = PersonnelSchema.parse(data);
+    const personnel = await db.personnel.create({
+      data: { ...validated, createdById: session.user.id },
+    });
+    revalidatePath("/personnel");
+    revalidatePath(`/vendors/${validated.vendorId}`);
+    return { success: true, data: { id: personnel.id } };
+  } catch (error) {
+    return { success: false, error: getErrorMessage(error) };
+  }
 }
 
-export async function updatePersonnel(id: string, data: PersonnelInput) {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
-
-  const validated = PersonnelSchema.parse(data);
-  const personnel = await db.personnel.update({
-    where: { id },
-    data: validated,
-  });
-
-  revalidatePath("/personnel");
-  revalidatePath(`/personnel/${id}`);
-  return { success: true, personnel };
+export async function updatePersonnel(
+  id: string,
+  data: PersonnelInput
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    await requireAuth();
+    const validated = PersonnelSchema.parse(data);
+    const personnel = await db.personnel.update({
+      where: { id },
+      data: validated,
+    });
+    revalidatePath("/personnel");
+    revalidatePath(`/personnel/${id}`);
+    return { success: true, data: { id: personnel.id } };
+  } catch (error) {
+    return { success: false, error: getErrorMessage(error) };
+  }
 }
 
-export async function updateInterviewStatus(id: string, status: string) {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
-
-  await db.personnel.update({
-    where: { id },
-    data: { interviewStatus: status as never },
-  });
-
-  revalidatePath("/personnel");
-  revalidatePath(`/personnel/${id}`);
-  revalidatePath("/pipeline");
-  return { success: true };
+export async function updateInterviewStatus(
+  id: string,
+  status: InterviewStatus
+): Promise<ActionResult> {
+  try {
+    await requireAuth();
+    await db.personnel.update({
+      where: { id },
+      data: { interviewStatus: status },
+    });
+    revalidatePath("/personnel");
+    revalidatePath(`/personnel/${id}`);
+    revalidatePath("/pipeline");
+    return { success: true, data: undefined };
+  } catch (error) {
+    return { success: false, error: getErrorMessage(error) };
+  }
 }
 
-export async function softDeletePersonnel(id: string) {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
-
-  const role = (session.user as { role?: string }).role;
-  if (role !== "DU_LEADER") throw new Error("Forbidden");
-
-  await db.personnel.update({ where: { id }, data: { status: "ENDED" } });
-  revalidatePath("/personnel");
-  return { success: true };
+export async function softDeletePersonnel(id: string): Promise<ActionResult> {
+  try {
+    await requireRole("DU_LEADER");
+    await db.personnel.update({ where: { id }, data: { status: "ENDED" } });
+    revalidatePath("/personnel");
+    return { success: true, data: undefined };
+  } catch (error) {
+    return { success: false, error: getErrorMessage(error) };
+  }
 }

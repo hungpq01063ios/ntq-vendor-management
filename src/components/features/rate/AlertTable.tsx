@@ -8,7 +8,8 @@ import {
   updateAlertStatus,
   checkAndCreateDriftAlerts,
 } from "@/actions/alert.actions";
-import type { RateAlert, JobType, TechStack, Level } from "@/types";
+import type { RateAlert, JobType, TechStack, Level, AlertStatus } from "@/types";
+
 
 type AlertWithRelations = RateAlert & {
   jobType: JobType;
@@ -58,17 +59,16 @@ export default function AlertTable({ alerts, isDULeader }: Props) {
 
   async function handleAction(
     id: string,
-    status: string,
+    status: AlertStatus,
     note?: string
   ) {
     setActioning(id);
-    try {
-      await updateAlertStatus(id, status, note);
+    const result = await updateAlertStatus(id, status, note);
+    setActioning(null);
+    if (result.success) {
       toast.success(`Alert ${status.toLowerCase().replace("_for_du_leader", "")}d`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed");
-    } finally {
-      setActioning(null);
+    } else {
+      toast.error(result.error);
     }
   }
 
@@ -79,31 +79,29 @@ export default function AlertTable({ alerts, isDULeader }: Props) {
       return;
     }
     setActioning(dismissTarget.id);
-    try {
-      await updateAlertStatus(dismissTarget.id, "DISMISSED", dismissNote);
+    const result = await updateAlertStatus(dismissTarget.id, "DISMISSED", dismissNote);
+    setActioning(null);
+    if (result.success) {
       toast.success("Alert dismissed");
       setDismissTarget(null);
       setDismissNote("");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed");
-    } finally {
-      setActioning(null);
+    } else {
+      toast.error(result.error);
     }
   }
 
   async function handleScan() {
     setScanning(true);
-    try {
-      const result = await checkAndCreateDriftAlerts();
+    const result = await checkAndCreateDriftAlerts();
+    setScanning(false);
+    if (result.success) {
       toast.success(
-        result.created > 0
-          ? `${result.created} new alert${result.created !== 1 ? "s" : ""} created`
+        result.data.created > 0
+          ? `${result.data.created} new alert${result.data.created !== 1 ? "s" : ""} created`
           : "No new drift detected"
       );
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Scan failed");
-    } finally {
-      setScanning(false);
+    } else {
+      toast.error(result.error);
     }
   }
 

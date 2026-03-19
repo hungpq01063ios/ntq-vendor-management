@@ -75,14 +75,20 @@ export async function getDashboardData(): Promise<DashboardData> {
       }),
     ]);
 
-  // Build rate config
+  const [configs, markets] = await Promise.all([
+    db.systemConfig.findMany(),
+    db.marketConfig.findMany({ where: { isActive: true } }),
+  ]);
   const configMap = Object.fromEntries(
-    configRows.map((c: { key: string; value: string }) => [c.key, parseFloat(c.value)])
+    configs.map((c) => [c.key, parseFloat(c.value)])
+  );
+  const marketRateFactors = Object.fromEntries(
+    markets.map((m) => [m.code, m.marketRateFactorPct])
   );
   const rateConfig: RateConfig = {
     overheadRatePct: configMap["OVERHEAD_RATE_PCT"] ?? 0.2,
-    marketRateFactorPct: configMap["MARKET_RATE_FACTOR_PCT"] ?? 0.8,
     driftAlertThresholdPct: configMap["DRIFT_ALERT_THRESHOLD_PCT"] ?? 0.15,
+    marketRateFactors,
   };
 
   // Collect unique combos for batch fetching
@@ -92,7 +98,7 @@ export async function getDashboardData(): Promise<DashboardData> {
   for (const a of assignments) {
     const p = a.personnel;
     normKeySet.add(
-      `${p.jobTypeId}|${p.techStackId}|${p.levelId}|${p.domainId}|${p.vendor.market}`
+      `${p.jobTypeId}|${p.techStackId}|${p.levelId}|${p.domainId}|${p.vendor.marketCode}`
     );
     uniqueProjectIds.add(a.projectId);
   }
@@ -110,7 +116,7 @@ export async function getDashboardData(): Promise<DashboardData> {
                 techStackId,
                 levelId,
                 domainId,
-                market: market as never,
+                marketCode: market,
               };
             }),
           },
@@ -127,7 +133,7 @@ export async function getDashboardData(): Promise<DashboardData> {
   const normMap = new Map<string, (typeof allNorms)[0]>();
   for (const n of allNorms) {
     normMap.set(
-      `${n.jobTypeId}|${n.techStackId}|${n.levelId}|${n.domainId}|${n.market}`,
+      `${n.jobTypeId}|${n.techStackId}|${n.levelId}|${n.domainId}|${n.marketCode}`,
       n
     );
   }
@@ -155,7 +161,7 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   for (const a of assignments) {
     const p = a.personnel;
-    const normKey = `${p.jobTypeId}|${p.techStackId}|${p.levelId}|${p.domainId}|${p.vendor.market}`;
+    const normKey = `${p.jobTypeId}|${p.techStackId}|${p.levelId}|${p.domainId}|${p.vendor.marketCode}`;
     const overrideKey = `${a.projectId}|${p.jobTypeId}|${p.techStackId}|${p.levelId}|${p.domainId}`;
 
     const norm = normMap.get(normKey);
@@ -178,7 +184,7 @@ export async function getDashboardData(): Promise<DashboardData> {
         projectId: a.projectId,
         projectName: a.project.name,
         clientName: a.project.clientName,
-        market: a.project.market,
+        market: a.project.marketCode,
         headcount: 0,
         revenue: 0,
         cost: 0,

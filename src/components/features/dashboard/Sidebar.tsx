@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "@/i18n";
+import LanguageSwitcher from "./LanguageSwitcher";
 import type { Session } from "next-auth";
 
 interface SidebarProps {
@@ -11,28 +13,29 @@ interface SidebarProps {
   pendingAlertCount?: number;
 }
 
-const navItems = [
-  { href: "/", label: "Dashboard", icon: "▦" },
-  { href: "/vendors", label: "Vendors", icon: "🏢" },
-  { href: "/personnel", label: "Personnel", icon: "👥" },
-  { href: "/projects", label: "Projects", icon: "📋" },
-  { href: "/pipeline", label: "Pipeline", icon: "⚡" },
-  { href: "/rates", label: "Rate Norms", icon: "💲", duLeaderOnly: false },
-  { href: "/alerts", label: "Alerts", icon: "🔔" },
-];
-
-const duLeaderOnlyItems = [
-  { href: "/rates/config", label: "Rate Config", icon: "⚙️" },
-];
-
 export default function Sidebar({ session, pendingAlertCount = 0 }: SidebarProps) {
   const pathname = usePathname();
   const isDuLeader = (session.user as { role?: string })?.role === "DU_LEADER";
+  const { t } = useTranslations();
+
+  const navItems = [
+    { href: "/", label: t.nav.dashboard, icon: "▦" },
+    { href: "/vendors", label: t.nav.vendors, icon: "🏢" },
+    { href: "/personnel", label: t.nav.personnel, icon: "👥" },
+    { href: "/projects", label: t.nav.projects, icon: "📋" },
+    { href: "/pipeline", label: t.nav.pipeline, icon: "⚡" },
+    { href: "/rates", label: t.nav.rateNorms, icon: "💲" },
+    { href: "/alerts", label: t.nav.alerts, icon: "🔔" },
+  ];
+
+  const duLeaderOnlyItems = [
+    { href: "/rates/config", label: t.nav.rateConfig, icon: "⚙️" },
+  ];
 
   return (
     <aside className="w-56 bg-white border-r flex flex-col">
       <div className="p-4 border-b">
-        <h2 className="font-bold text-gray-900 text-sm">NTQ Vendor Mgmt</h2>
+        <h2 className="font-bold text-gray-900 text-sm">{t.common.appName}</h2>
         <p className="text-xs text-gray-500 mt-0.5">{session.user?.name}</p>
       </div>
 
@@ -61,7 +64,7 @@ export default function Sidebar({ session, pendingAlertCount = 0 }: SidebarProps
         {isDuLeader && (
           <>
             <div className="pt-2 pb-1">
-              <p className="text-xs text-gray-400 px-3">Admin</p>
+              <p className="text-xs text-gray-400 px-3">{t.common.admin}</p>
             </div>
             {duLeaderOnlyItems.map((item) => (
               <Link
@@ -82,14 +85,17 @@ export default function Sidebar({ session, pendingAlertCount = 0 }: SidebarProps
         )}
       </nav>
 
-      <div className="p-2 border-t">
-        <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-        >
-          <span>🚪</span>
-          Sign out
-        </button>
+      <div className="border-t">
+        <LanguageSwitcher />
+        <div className="p-2">
+          <button
+            onClick={() => signOut({ callbackUrl: "/login" })}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            <span>🚪</span>
+            {t.common.signOut}
+          </button>
+        </div>
       </div>
     </aside>
   );

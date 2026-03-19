@@ -1,11 +1,14 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireAuth, requireRole } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
 import { RateNormSchema } from "@/lib/validations";
 import { calculateVendorTargetRate } from "@/lib/rate-engine";
+import { getErrorMessage } from "@/lib/utils";
+import type { ActionResult } from "@/types";
 import type { z } from "zod";
+import type { ConfigKey, AlertStatus } from "@prisma/client";
 
 // ─── Rate Norms ────────────────────────────────────────────────────────────────
 
@@ -22,87 +25,86 @@ export async function getRateNorms(filter?: {
       ...(filter?.techStackId && { techStackId: filter.techStackId }),
       ...(filter?.levelId && { levelId: filter.levelId }),
       ...(filter?.domainId && { domainId: filter.domainId }),
-      ...(filter?.market && { market: filter.market as never }),
+      ...(filter?.market && { marketCode: filter.market }),
     },
     include: { jobType: true, techStack: true, level: true, domain: true },
     orderBy: [{ jobType: { order: "asc" } }, { level: { order: "asc" } }],
   });
 }
 
-export async function upsertRateNorm(data: z.infer<typeof RateNormSchema>) {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
+export async function upsertRateNorm(
+  data: z.infer<typeof RateNormSchema>
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    const session = await requireRole("DU_LEADER");
+    const validated = RateNormSchema.parse(data);
+    const { effectiveDate, ...rest } = validated;
 
-  const role = (session.user as { role?: string }).role;
-  if (role !== "DU_LEADER") throw new Error("Forbidden");
-
-  const validated = RateNormSchema.parse(data);
-  const { effectiveDate, ...rest } = validated;
-
-  const norm = await db.rateNorm.upsert({
-    where: {
-      jobTypeId_techStackId_levelId_domainId_market: {
-        jobTypeId: rest.jobTypeId,
-        techStackId: rest.techStackId,
-        levelId: rest.levelId,
-        domainId: rest.domainId,
-        market: rest.market,
+    const norm = await db.rateNorm.upsert({
+      where: {
+        jobTypeId_techStackId_levelId_domainId_marketCode: {
+          jobTypeId: rest.jobTypeId,
+          techStackId: rest.techStackId,
+          levelId: rest.levelId,
+          domainId: rest.domainId,
+          marketCode: rest.marketCode,
+        },
       },
-    },
-    update: {
-      ...rest,
-      effectiveDate: effectiveDate ?? new Date(),
-      createdById: session.user.id,
-    },
-    create: {
-      ...rest,
-      effectiveDate: effectiveDate ?? new Date(),
-      createdById: session.user.id,
-    },
-  });
+      update: {
+        ...rest,
+        effectiveDate: effectiveDate ?? new Date(),
+        createdById: session.user.id,
+      },
+      create: {
+        ...rest,
+        effectiveDate: effectiveDate ?? new Date(),
+        createdById: session.user.id,
+      },
+    });
 
-  revalidatePath("/rates");
-  return { success: true, norm };
+    revalidatePath("/rates");
+    return { success: true, data: { id: norm.id } };
+  } catch (error) {
+    return { success: false, error: getErrorMessage(error) };
+  }
 }
 
-export async function deleteRateNorm(id: string) {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
-
-  const role = (session.user as { role?: string }).role;
-  if (role !== "DU_LEADER") throw new Error("Forbidden");
-
-  await db.rateNorm.delete({ where: { id } });
-  revalidatePath("/rates");
-  return { success: true };
+export async function deleteRateNorm(id: string): Promise<ActionResult> {
+  try {
+    await requireRole("DU_LEADER");
+    await db.rateNorm.delete({ where: { id } });
+    revalidatePath("/rates");
+    return { success: true, data: undefined };
+  } catch (error) {
+    return { success: false, error: getErrorMessage(error) };
+  }
 }
 
 // ─── System Config ─────────────────────────────────────────────────────────────
 
 export async function getSystemConfigs(): Promise<Record<string, number>> {
   const rows = await db.systemConfig.findMany();
-  return Object.fromEntries(rows.map((r: { key: string; value: string }) => [r.key, parseFloat(r.value)]));
+  return Object.fromEntries(
+    rows.map((r: { key: string; value: string }) => [r.key, parseFloat(r.value)])
+  );
 }
 
-export async function updateSystemConfig(key: string, value: number) {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
-
-  const role = (session.user as { role?: string }).role;
-  if (role !== "DU_LEADER") throw new Error("Forbidden");
-
-  await db.systemConfig.upsert({
-    where: { key: key as never },
-    update: { value: value.toString(), updatedById: session.user.id },
-    create: {
-      key: key as never,
-      value: value.toString(),
-      updatedById: session.user.id,
-    },
-  });
-
-  revalidatePath("/rates/config");
-  return { success: true };
+export async function updateSystemConfig(
+  key: ConfigKey,
+  value: number
+): Promise<ActionResult> {
+  try {
+    const session = await requireRole("DU_LEADER");
+    await db.systemConfig.upsert({
+      where: { key },
+      update: { value: value.toString(), updatedById: session.user.id },
+      create: { key, value: value.toString(), updatedById: session.user.id },
+    });
+    revalidatePath("/rates/config");
+    return { success: true, data: undefined };
+  } catch (error) {
+    return { success: false, error: getErrorMessage(error) };
+  }
 }
 
 // ─── Project Rate Overrides ────────────────────────────────────────────────────
@@ -124,43 +126,43 @@ export async function upsertProjectRateOverride(
     domainId: string;
     customBillingRate: number;
   }
-) {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
-
-  const override = await db.projectRateOverride.upsert({
-    where: {
-      projectId_jobTypeId_techStackId_levelId_domainId: {
-        projectId,
-        jobTypeId: data.jobTypeId,
-        techStackId: data.techStackId,
-        levelId: data.levelId,
-        domainId: data.domainId,
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    const session = await requireAuth();
+    const override = await db.projectRateOverride.upsert({
+      where: {
+        projectId_jobTypeId_techStackId_levelId_domainId: {
+          projectId,
+          jobTypeId: data.jobTypeId,
+          techStackId: data.techStackId,
+          levelId: data.levelId,
+          domainId: data.domainId,
+        },
       },
-    },
-    update: {
-      customBillingRate: data.customBillingRate,
-      setById: session.user.id,
-      setAt: new Date(),
-    },
-    create: { projectId, ...data, setById: session.user.id },
-  });
-
-  revalidatePath(`/projects/${projectId}/rates`);
-  revalidatePath(`/projects/${projectId}`);
-  return { success: true, override };
+      update: {
+        customBillingRate: data.customBillingRate,
+        setById: session.user.id,
+        setAt: new Date(),
+      },
+      create: { projectId, ...data, setById: session.user.id },
+    });
+    revalidatePath(`/projects/${projectId}/rates`);
+    revalidatePath(`/projects/${projectId}`);
+    return { success: true, data: { id: override.id } };
+  } catch (error) {
+    return { success: false, error: getErrorMessage(error) };
+  }
 }
 
-export async function deleteProjectRateOverride(id: string) {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
-
-  const role = (session.user as { role?: string }).role;
-  if (role !== "DU_LEADER") throw new Error("Forbidden");
-
-  const override = await db.projectRateOverride.delete({ where: { id } });
-  revalidatePath(`/projects/${override.projectId}/rates`);
-  return { success: true };
+export async function deleteProjectRateOverride(id: string): Promise<ActionResult> {
+  try {
+    await requireRole("DU_LEADER");
+    const override = await db.projectRateOverride.delete({ where: { id } });
+    revalidatePath(`/projects/${override.projectId}/rates`);
+    return { success: true, data: undefined };
+  } catch (error) {
+    return { success: false, error: getErrorMessage(error) };
+  }
 }
 
 // ─── Rate Norm For Personnel (assignment suggestion) ───────────────────────────
@@ -169,12 +171,13 @@ export async function getRateNormForPersonnel(
   personnelId: string,
   projectId: string
 ) {
-  const [personnel, configs] = await Promise.all([
+  const [personnel, configs, markets] = await Promise.all([
     db.personnel.findUnique({
       where: { id: personnelId },
       include: { vendor: true },
     }),
     db.systemConfig.findMany(),
+    db.marketConfig.findMany({ where: { isActive: true } }),
   ]);
 
   if (!personnel) return null;
@@ -184,18 +187,18 @@ export async function getRateNormForPersonnel(
       where: {
         projectId,
         jobTypeId: personnel.jobTypeId,
-        techStackId: personnel.techStackId,
+        techStackId: personnel.techStackId ?? undefined,
         levelId: personnel.levelId,
-        domainId: personnel.domainId,
+        domainId: personnel.domainId ?? undefined,
       },
     }),
     db.rateNorm.findFirst({
       where: {
         jobTypeId: personnel.jobTypeId,
-        techStackId: personnel.techStackId,
+        techStackId: personnel.techStackId ?? undefined,
         levelId: personnel.levelId,
-        domainId: personnel.domainId,
-        market: personnel.vendor.market,
+        domainId: personnel.domainId ?? undefined,
+        marketCode: personnel.vendor.marketCode,
       },
     }),
   ]);
@@ -203,10 +206,13 @@ export async function getRateNormForPersonnel(
   const configMap = Object.fromEntries(
     configs.map((c: { key: string; value: string }) => [c.key, parseFloat(c.value)])
   );
+  const marketRateFactors = Object.fromEntries(
+    markets.map((m) => [m.code, m.marketRateFactorPct])
+  );
   const rateConfig = {
     overheadRatePct: configMap["OVERHEAD_RATE_PCT"] ?? 0.2,
-    marketRateFactorPct: configMap["MARKET_RATE_FACTOR_PCT"] ?? 0.8,
     driftAlertThresholdPct: configMap["DRIFT_ALERT_THRESHOLD_PCT"] ?? 0.15,
+    marketRateFactors,
   };
 
   const normRate = rateNorm?.rateNorm ?? null;
@@ -221,7 +227,7 @@ export async function getRateNormForPersonnel(
 
   const vendorTargetRate =
     billingRate !== null
-      ? calculateVendorTargetRate(billingRate, rateConfig)
+      ? calculateVendorTargetRate(billingRate, rateConfig, personnel.vendor.marketCode)
       : null;
 
   return {
@@ -233,6 +239,32 @@ export async function getRateNormForPersonnel(
     billingRateSource,
     config: rateConfig,
   };
+}
+
+// ─── Alert status ──────────────────────────────────────────────────────────────
+
+export async function updateAlertStatusFromRate(
+  id: string,
+  status: AlertStatus,
+  note?: string
+): Promise<ActionResult> {
+  try {
+    await requireAuth();
+    if (status === "DISMISSED" && !note?.trim()) {
+      return {
+        success: false,
+        error: "A note is required when dismissing an alert",
+      };
+    }
+    await db.rateAlert.update({
+      where: { id },
+      data: { status, ...(note ? { note } : {}) },
+    });
+    revalidatePath("/alerts");
+    return { success: true, data: undefined };
+  } catch (error) {
+    return { success: false, error: getErrorMessage(error) };
+  }
 }
 
 // ─── Lookup (kept for backward compat) ────────────────────────────────────────

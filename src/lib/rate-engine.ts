@@ -2,9 +2,12 @@
 // Pure functions — no DB calls, fully testable
 
 export interface RateConfig {
-  overheadRatePct: number; // e.g. 0.20
-  marketRateFactorPct: number; // e.g. 0.80
-  driftAlertThresholdPct: number; // e.g. 0.15
+  overheadRatePct: number;          // e.g. 0.20 — global
+  driftAlertThresholdPct: number;    // e.g. 0.15 — global
+  /** Per-market rate factors — required, set from MarketConfig table */
+  marketRateFactors?: Record<string, number>; // marketCode -> factor
+  /** Fallback if market not found in marketRateFactors (default 0.8) */
+  marketRateFactorPct?: number;
 }
 
 export interface RateResolutionInput {
@@ -12,6 +15,7 @@ export interface RateResolutionInput {
   normRate: number | null;
   projectOverrideRate: number | null;
   memberBillingOverride: number | null;
+  vendorRateOverride?: number | null; // optional per-assignment override
 }
 
 export interface RateResult {
@@ -26,15 +30,31 @@ export interface RateResult {
 }
 
 /**
+ * Get the effective market rate factor for a given market code.
+ * Uses per-market override if available, falls back to global.
+ */
+export function getMarketFactor(
+  marketCode: string | null | undefined,
+  config: RateConfig
+): number {
+  if (marketCode && config.marketRateFactors?.[marketCode] !== undefined) {
+    return config.marketRateFactors[marketCode];
+  }
+  return config.marketRateFactorPct ?? 0.8;
+}
+
+/**
  * Core formula:
  * VendorTargetRate = (billingRate - billingRate × overheadPct) × marketFactor
  */
 export function calculateVendorTargetRate(
   billingRate: number,
-  config: RateConfig
+  config: RateConfig,
+  marketCode?: string | null
 ): number {
   const afterOverhead = billingRate - billingRate * config.overheadRatePct;
-  return afterOverhead * config.marketRateFactorPct;
+  const factor = getMarketFactor(marketCode, config);
+  return afterOverhead * factor;
 }
 
 /**
@@ -86,13 +106,6 @@ export function calculateAssignmentRates(
     deltaVsNorm,
     isAboveTarget,
   };
-}
-
-// Workaround for RateResolutionInput missing vendorRateOverride
-declare module "./rate-engine" {
-  interface RateResolutionInput {
-    vendorRateOverride?: number | null;
-  }
 }
 
 /**

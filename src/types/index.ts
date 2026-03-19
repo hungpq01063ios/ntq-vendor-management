@@ -1,3 +1,11 @@
+// ─── ActionResult ─────────────────────────────────────────────────────────────
+// Standard return type for all Server Action mutations.
+// Mutations should never throw to client — always return this type.
+// Read-only actions (getAll, getById) may throw — error.tsx handles them.
+export type ActionResult<T = void> =
+  | { success: true; data: T }
+  | { success: false; error: string };
+
 import type {
   User,
   Vendor,
@@ -5,6 +13,7 @@ import type {
   Project,
   Assignment,
   RateNorm,
+  MarketConfig,
   JobType,
   TechStack,
   Level,
@@ -12,7 +21,6 @@ import type {
   RateAlert,
   SystemConfig,
   UserRole,
-  Market,
   VendorStatus,
   PersonnelStatus,
   InterviewStatus,
@@ -30,6 +38,7 @@ export type {
   Project,
   Assignment,
   RateNorm,
+  MarketConfig,
   JobType,
   TechStack,
   Level,
@@ -37,7 +46,6 @@ export type {
   RateAlert,
   SystemConfig,
   UserRole,
-  Market,
   VendorStatus,
   PersonnelStatus,
   InterviewStatus,
@@ -57,9 +65,9 @@ export type VendorWithPersonnel = Vendor & {
 export type PersonnelWithRelations = Personnel & {
   vendor: Vendor;
   jobType: JobType;
-  techStack: TechStack;
+  techStack: TechStack | null;
   level: Level;
-  domain: Domain;
+  domain: Domain | null;
 };
 
 export type AssignmentWithRelations = Assignment & {
