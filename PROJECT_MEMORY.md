@@ -1,6 +1,6 @@
 # PROJECT MEMORY — NTQ Vendor Management
 > **Mục đích:** Bộ nhớ dự án. Session AI mới PHẢI đọc Section 1–3 trước (~60 dòng).
-> Chỉ đọc section 4–8 khi cần chi tiết. **Last updated:** 2026-03-24 (v5.0 — Production Ready)
+> Chỉ đọc section 4–8 khi cần chi tiết. **Last updated:** 2026-03-24 (v5.1 — Rate Override Fully Fixed)
 
 ---
 
@@ -50,7 +50,9 @@ All CRs    : ✅ 14/14 Done
 | Assignment edit/delete + rate columns | ✅ Done | `/projects/[id]` |
 | Project P&L card (detail page) | ✅ Done | `/projects/[id]` — DU_LEADER only |
 | Rate Norm matrix + market context banner | ✅ Done (CR-13) | `/rates` |
-| Rate Override optional techstack/domain | ✅ Done | `/projects/[id]/rates` |
+| Rate Override (project-level, sentinel ID approach) | ✅ Done + Fixed | `/projects/[id]/rates` |
+| Rate Override — Norm Rate & Delta hiển thị đúng | ✅ Done | `/projects/[id]/rates` table |
+| Rate Override — Priority đúng (override > norm trong assignment) | ✅ Done | `assignment.actions`, `rate.actions` |
 | Rate Config (Overhead/MarketFactor/Drift) | ✅ Done | `/rates/config` — DU_LEADER only |
 | Rate Import Excel (pre-fill data thị trường hiện có) | ✅ Done (CR-14) | `/rates` → Import dialog |
 | Rate Clone từ English → thị trường khác | ✅ Done (2026-03-22) | `/rates` → Clone button |
@@ -67,6 +69,9 @@ All CRs    : ✅ 14/14 Done
 - Vendor **không có marketCode** — market thuộc về Project
 - Norm lookup: **fallback chain** (exact → General domain → Generic+General) — 4 files bị ảnh hưởng: `assignment.actions`, `dashboard.actions`, `rate.actions`, `alert.actions`
 - `null` techStack → tra cứu bằng "Generic"; `null` domain → tra cứu bằng "General" before falling back further
+- **Rate Override sentinel pattern:** khi chọn "Any" trong form override → lưu `Generic`/`General` ID (không dùng null/empty string). Nhất quán với fallback chain.
+- **Override priority:** `billingRate = projectOverrideRate ?? normRate ?? null` — override luôn ưu tiên hơn norm khi match
+- **Override key lookup** phải dùng null-mapped IDs (ts/dom) chứ không phải raw `personnel.techStackId`
 
 ---
 
@@ -127,6 +132,7 @@ prisma/seed.ts                  ← Sample data + admin user
 
 | Date | Change | Type |
 |---|---|---|
+| 2026-03-24 | **Rate Override — Full Fix (4 commits)**: (1) Schema `String?`→`String`, sentinel approach. (2) Upsert → `findFirst+create/update` (Prisma null issue). (3) Final fix: map `""` → Generic/General IDs trước upsert — nhất quán với fallback chain. (4) Fix override key mismatch trong assignment.actions (`p.techStackId` null → dùng `ts` sentinel). (5) Fix `getNormRate()` thiếu `marketCode` filter → Norm Rate và Delta hiển thị đúng trong bảng Rate Overrides. Toàn bộ: TSC 0 errors, 50/50 tests. | Bug fix |
 | 2026-03-24 | **Norm Fallback Lookup**: khi không tìm được exact norm → fallback `General domain` → fallback `Generic stack + General`. Fix null mismatch (null vs Generic/General string). Sửa 4 files: assignment.actions, dashboard.actions, rate.actions, alert.actions. Bonus: alert.actions loại bỏ N+1 query | Bug fix + Perf |
 | 2026-03-24 | **Hydration fix**: `suppressHydrationWarning` vào `<body>` tag (browser extension inject className) | Bug fix |
 | 2026-03-24 | **Rule fix**: Norm rate lookup dùng `project.marketCode` thay `vendor.marketCode`. Sửa 4 files: assignment.actions, dashboard.actions, rate.actions, alert.actions | Business Rule |
