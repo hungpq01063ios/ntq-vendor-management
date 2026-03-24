@@ -11,9 +11,9 @@ import type { JobType, TechStack, Level, Domain, RateNorm } from "@/types";
 interface Override {
   id: string;
   jobTypeId: string;
-  techStackId: string | null;
+  techStackId: string;
   levelId: string;
-  domainId: string | null;
+  domainId: string;
   customBillingRate: number;
   setAt: Date;
   jobType: JobType;

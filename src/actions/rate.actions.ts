@@ -257,45 +257,56 @@ export async function upsertProjectRateOverride(
 ): Promise<ActionResult<{ id: string }>> {
   try {
     const session = await requireAuth();
-    // Sanitize: empty string from form select "" → null ("Any" / not applicable)
-    const techStackId = data.techStackId || null;
-    const domainId = data.domainId || null;
 
-    // Use raw query to check for existing override because Prisma ORM does not
-    // allow null comparisons on nullable FK fields in findFirst where clause
-    const existingRows = await db.$queryRaw<{ id: string }[]>`
-      SELECT id FROM "ProjectRateOverride"
-      WHERE "projectId" = ${projectId}
-        AND "jobTypeId" = ${data.jobTypeId}
-        AND "levelId" = ${data.levelId}
-        AND (${techStackId}::text IS NULL AND "techStackId" IS NULL OR "techStackId" = ${techStackId})
-        AND (${domainId}::text IS NULL AND "domainId" IS NULL OR "domainId" = ${domainId})
-      LIMIT 1
-    `;
-    const existingId = existingRows[0]?.id ?? null;
-    let override;
-    if (existingId) {
-      override = await db.projectRateOverride.update({
-        where: { id: existingId },
-        data: {
-          customBillingRate: data.customBillingRate,
-          setById: session.user.id,
-          setAt: new Date(),
-        },
+    // Resolve "Any" (empty string) → sentinel IDs, same as rate norm fallback chain
+    // "" techStack → "Generic", "" domain → "General"
+    let { techStackId, domainId } = data;
+    if (!techStackId) {
+      const generic = await db.techStack.findFirst({
+        where: { name: "Generic" },
+        select: { id: true },
       });
-    } else {
-      override = await db.projectRateOverride.create({
-        data: {
+      if (!generic) {
+        return { success: false, error: "Tech stack 'Generic' not found. Please configure it in Rate Norms." };
+      }
+      techStackId = generic.id;
+    }
+    if (!domainId) {
+      const general = await db.domain.findFirst({
+        where: { name: "General" },
+        select: { id: true },
+      });
+      if (!general) {
+        return { success: false, error: "Domain 'General' not found. Please configure it in Rate Norms." };
+      }
+      domainId = general.id;
+    }
+
+    const override = await db.projectRateOverride.upsert({
+      where: {
+        projectId_jobTypeId_techStackId_levelId_domainId: {
           projectId,
           jobTypeId: data.jobTypeId,
           techStackId,
           levelId: data.levelId,
           domainId,
-          customBillingRate: data.customBillingRate,
-          setById: session.user.id,
         },
-      });
-    }
+      },
+      update: {
+        customBillingRate: data.customBillingRate,
+        setById: session.user.id,
+        setAt: new Date(),
+      },
+      create: {
+        projectId,
+        jobTypeId: data.jobTypeId,
+        techStackId,
+        levelId: data.levelId,
+        domainId,
+        customBillingRate: data.customBillingRate,
+        setById: session.user.id,
+      },
+    });
     revalidatePath(`/projects/${projectId}/rates`);
     revalidatePath(`/projects/${projectId}`);
     return { success: true, data: { id: override.id } };
