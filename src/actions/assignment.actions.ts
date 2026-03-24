@@ -270,7 +270,9 @@ export async function getProjectRateBreakdown(
       (ts && dom ? normMap.get(`${p.jobTypeId}|${ts}|${p.levelId}|${dom}|${mc}`) : undefined) ??
       (ts && GENERAL_DOMAIN_ID ? normMap.get(`${p.jobTypeId}|${ts}|${p.levelId}|${GENERAL_DOMAIN_ID}|${mc}`) : undefined) ??
       (GENERIC_STACK_ID && GENERAL_DOMAIN_ID ? normMap.get(`${p.jobTypeId}|${GENERIC_STACK_ID}|${p.levelId}|${GENERAL_DOMAIN_ID}|${mc}`) : undefined);
-    const overrideKey = `${p.jobTypeId}|${p.techStackId}|${p.levelId}|${p.domainId}`;
+    // Override key must use the same null-mapping as how overrides are stored:
+    // personnel.techStackId=null → Generic sentinel, same as upsertProjectRateOverride
+    const overrideKey = `${p.jobTypeId}|${ts}|${p.levelId}|${dom}`;
     const override = overrideMap.get(overrideKey);
 
     const rates = calculateAssignmentRates(

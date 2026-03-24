@@ -377,9 +377,10 @@ export async function getRateNormForPersonnel(
       where: {
         projectId,
         jobTypeId: personnel.jobTypeId,
-        techStackId: personnel.techStackId ?? undefined,
+        // Use sentinel-mapped IDs: null → Generic/General (same as how overrides are stored)
+        techStackId: ts,
         levelId: personnel.levelId,
-        domainId: personnel.domainId ?? undefined,
+        domainId: dom,
       },
     }),
     candidates.length > 0
