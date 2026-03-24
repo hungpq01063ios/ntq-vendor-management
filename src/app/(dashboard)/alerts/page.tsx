@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { auth } from "@/lib/auth";
+import { getSessionWithRole } from "@/lib/auth-helpers";
 import { getAlerts } from "@/actions/alert.actions";
 import AlertTable from "@/components/features/rate/AlertTable";
 import { getTranslations } from "@/i18n/server";
@@ -12,10 +12,10 @@ export const metadata: Metadata = {
 export default async function AlertsPage() {
   const cookieStore = await cookies();
   const t = getTranslations(cookieStore.get("locale")?.value);
-  const [session, alerts] = await Promise.all([auth(), getAlerts()]);
-
-  const isDULeader =
-    (session?.user as { role?: string })?.role === "DU_LEADER";
+  const [{ isDULeader }, alerts] = await Promise.all([
+    getSessionWithRole(),
+    getAlerts(),
+  ]);
 
   return (
     <div>

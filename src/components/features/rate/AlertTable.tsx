@@ -9,6 +9,7 @@ import {
   checkAndCreateDriftAlerts,
 } from "@/actions/alert.actions";
 import type { RateAlert, JobType, TechStack, Level, AlertStatus } from "@/types";
+import { useTranslations } from "@/i18n";
 
 
 type AlertWithRelations = RateAlert & {
@@ -20,13 +21,6 @@ type AlertWithRelations = RateAlert & {
 
 type TabValue = "ALL" | "PENDING" | "FLAGGED_FOR_DU_LEADER" | "RESOLVED" | "DISMISSED";
 
-const TABS: { value: TabValue; label: string }[] = [
-  { value: "ALL", label: "All" },
-  { value: "PENDING", label: "Pending" },
-  { value: "FLAGGED_FOR_DU_LEADER", label: "Flagged" },
-  { value: "RESOLVED", label: "Resolved" },
-  { value: "DISMISSED", label: "Dismissed" },
-];
 
 const STATUS_COLORS: Record<string, string> = {
   PENDING: "bg-yellow-100 text-yellow-800",
@@ -53,6 +47,15 @@ export default function AlertTable({ alerts, isDULeader }: Props) {
   const [dismissNote, setDismissNote] = useState("");
   const [actioning, setActioning] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
+  const { t } = useTranslations();
+
+  const TABS: { value: TabValue; label: string }[] = [
+    { value: "ALL", label: t.alert.all },
+    { value: "PENDING", label: t.alert.pending },
+    { value: "FLAGGED_FOR_DU_LEADER", label: t.alert.flagged },
+    { value: "RESOLVED", label: t.alert.resolved },
+    { value: "DISMISSED", label: t.alert.dismissed },
+  ];
 
   const filtered =
     activeTab === "ALL" ? alerts : alerts.filter((a) => a.status === activeTab);
@@ -75,14 +78,14 @@ export default function AlertTable({ alerts, isDULeader }: Props) {
   async function handleDismissConfirm() {
     if (!dismissTarget) return;
     if (!dismissNote.trim()) {
-      toast.error("A note is required when dismissing");
+      toast.error(t.alert.dismissNoteRequired);
       return;
     }
     setActioning(dismissTarget.id);
     const result = await updateAlertStatus(dismissTarget.id, "DISMISSED", dismissNote);
     setActioning(null);
     if (result.success) {
-      toast.success("Alert dismissed");
+      toast.success(t.alert.alertDismissed);
       setDismissTarget(null);
       setDismissNote("");
     } else {
@@ -97,8 +100,8 @@ export default function AlertTable({ alerts, isDULeader }: Props) {
     if (result.success) {
       toast.success(
         result.data.created > 0
-          ? `${result.data.created} new alert${result.data.created !== 1 ? "s" : ""} created`
-          : "No new drift detected"
+          ? `${result.data.created} ${t.alert.newAlertsCreated}`
+          : t.alert.noNewDrift
       );
     } else {
       toast.error(result.error);
@@ -143,7 +146,7 @@ export default function AlertTable({ alerts, isDULeader }: Props) {
                 onClick={handleScan}
                 disabled={scanning}
               >
-                {scanning ? "Scanning..." : "Scan for Drift"}
+                {scanning ? t.rate.scanning : t.rate.scanForDrift}
               </Button>
             </div>
           )}
@@ -155,14 +158,14 @@ export default function AlertTable({ alerts, isDULeader }: Props) {
         <table className="w-full text-sm min-w-[850px]">
           <thead className="bg-gray-50 border-b">
             <tr>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Role</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-600">Norm Rate</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-600">Avg Vendor</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-600">Drift</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Triggered</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">{t.alert.role}</th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">{t.alert.normRate}</th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">{t.alert.avgVendor}</th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">{t.alert.drift}</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">{t.common.status}</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">{t.alert.triggered}</th>
               {isDULeader && (
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">{t.common.actions}</th>
               )}
             </tr>
           </thead>
@@ -173,7 +176,7 @@ export default function AlertTable({ alerts, isDULeader }: Props) {
                   colSpan={isDULeader ? 7 : 6}
                   className="px-4 py-8 text-center text-gray-400"
                 >
-                  No alerts found.
+                  {t.alert.noAlerts}
                 </td>
               </tr>
             )}
@@ -233,14 +236,14 @@ export default function AlertTable({ alerts, isDULeader }: Props) {
                             disabled={actioning === a.id}
                             className="text-orange-500 hover:text-orange-700 text-xs"
                           >
-                            Flag
+                            {t.alert.flag}
                           </button>
                           <button
                             onClick={() => handleAction(a.id, "RESOLVED")}
                             disabled={actioning === a.id}
                             className="text-green-600 hover:text-green-800 text-xs"
                           >
-                            Resolve
+                            {t.alert.resolve}
                           </button>
                           <button
                             onClick={() => {
@@ -250,7 +253,7 @@ export default function AlertTable({ alerts, isDULeader }: Props) {
                             disabled={actioning === a.id}
                             className="text-gray-500 hover:text-gray-800 text-xs"
                           >
-                            Dismiss
+                            {t.alert.dismiss}
                           </button>
                         </>
                       )}
@@ -261,7 +264,7 @@ export default function AlertTable({ alerts, isDULeader }: Props) {
                             disabled={actioning === a.id}
                             className="text-green-600 hover:text-green-800 text-xs"
                           >
-                            Resolve
+                            {t.alert.resolve}
                           </button>
                           <button
                             onClick={() => {
@@ -271,7 +274,7 @@ export default function AlertTable({ alerts, isDULeader }: Props) {
                             disabled={actioning === a.id}
                             className="text-gray-500 hover:text-gray-800 text-xs"
                           >
-                            Dismiss
+                            {t.alert.dismiss}
                           </button>
                         </>
                       )}
@@ -294,7 +297,7 @@ export default function AlertTable({ alerts, isDULeader }: Props) {
           <div className="fixed inset-0 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Dismiss Alert
+                {t.alert.dismissAlert}
               </h3>
               <p className="text-sm text-gray-600 mb-4">
                 <strong>
@@ -304,14 +307,14 @@ export default function AlertTable({ alerts, isDULeader }: Props) {
               </p>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Note <span className="text-red-500">*</span>
+                  {t.alert.dismissNote} <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   value={dismissNote}
                   onChange={(e) => setDismissNote(e.target.value)}
                   rows={3}
                   className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                  placeholder="Reason for dismissal..."
+                  placeholder={t.alert.dismissNotePlaceholder}
                 />
               </div>
               <div className="flex justify-end gap-3">
@@ -320,13 +323,13 @@ export default function AlertTable({ alerts, isDULeader }: Props) {
                   onClick={() => setDismissTarget(null)}
                   disabled={!!actioning}
                 >
-                  Cancel
+                  {t.common.cancel}
                 </Button>
                 <Button
                   onClick={handleDismissConfirm}
                   disabled={!!actioning || !dismissNote.trim()}
                 >
-                  {actioning ? "Dismissing..." : "Dismiss"}
+                  {actioning ? t.alert.dismissing : t.alert.dismiss}
                 </Button>
               </div>
             </div>

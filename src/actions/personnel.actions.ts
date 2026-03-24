@@ -16,17 +16,24 @@ export type PersonnelInput = z.infer<typeof PersonnelSchema>;
 
 export async function getPersonnel(filter?: {
   vendorId?: string;
-  status?: string;
+  status?: string | string[]; // CR-22: support array for multi-status filtering
   interviewStatus?: string;
   jobTypeId?: string;
   techStackId?: string;
   levelId?: string;
   search?: string;
 }) {
+  // CR-22: Build status filter — supports single value or array
+  const statusFilter = filter?.status
+    ? Array.isArray(filter.status)
+      ? { status: { in: filter.status as PersonnelStatus[] } }
+      : { status: filter.status as PersonnelStatus }
+    : {};
+
   return db.personnel.findMany({
     where: {
       ...(filter?.vendorId && { vendorId: filter.vendorId }),
-      ...(filter?.status && { status: filter.status as PersonnelStatus }),
+      ...statusFilter,
       ...(filter?.interviewStatus && {
         interviewStatus: filter.interviewStatus as InterviewStatus,
       }),
@@ -43,6 +50,10 @@ export async function getPersonnel(filter?: {
       techStack: true,
       level: true,
       domain: true,
+      assignments: {
+        where: { status: "ACTIVE" },
+        include: { project: { select: { id: true, name: true } } },
+      },
     },
     orderBy: { fullName: "asc" },
   });

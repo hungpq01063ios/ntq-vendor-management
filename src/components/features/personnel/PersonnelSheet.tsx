@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { createPersonnel, updatePersonnel } from "@/actions/personnel.actions";
 import { addPersonnelCV } from "@/actions/cv.actions";
+import { useTranslations } from "@/i18n";
 import type { Personnel, JobType, TechStack, Level, Domain } from "@/types";
 import type { PersonnelCVInput } from "@/actions/cv.actions";
 
@@ -19,6 +20,7 @@ const PersonnelFormSchema = z.object({
   fullName: z.string().min(1, "Full name is required"),
   jobTypeId: z.string().min(1, "Job type is required"),
   techStackId: z.string().nullable().optional(),
+  additionalTechStackIds: z.array(z.string()), // CR-09
   levelId: z.string().min(1, "Level is required"),
   domainId: z.string().nullable().optional(),
   englishLevel: z.enum(["BASIC", "INTERMEDIATE", "ADVANCED", "FLUENT"]),
@@ -45,6 +47,7 @@ function toFormValues(p: Personnel): PersonnelFormValues {
     fullName: p.fullName,
     jobTypeId: p.jobTypeId,
     techStackId: p.techStackId ?? null,
+    additionalTechStackIds: (p as { additionalTechStackIds?: string[] }).additionalTechStackIds ?? [],
     levelId: p.levelId,
     domainId: p.domainId ?? null,
     englishLevel: p.englishLevel,
@@ -62,6 +65,7 @@ const emptyValues: PersonnelFormValues = {
   fullName: "",
   jobTypeId: "",
   techStackId: null,
+  additionalTechStackIds: [],
   levelId: "",
   domainId: null,
   englishLevel: "INTERMEDIATE",
@@ -113,12 +117,14 @@ export default function PersonnelSheet({
   const isEdit = !!personnel;
   const router = useRouter();
   const uid = useId(); // stable prefix for CV draft keys
+  const { t } = useTranslations();
 
   // --- Personnel form ---
   const {
     register,
     handleSubmit,
     watch,
+    setValue,
     reset,
     formState: { errors, isSubmitting },
   } = useForm<PersonnelFormValues>({
@@ -127,6 +133,7 @@ export default function PersonnelSheet({
   });
 
   const leadership = watch("leadership");
+  const additionalTechStackIds = watch("additionalTechStackIds") ?? [];
 
   // --- CV drafts (create mode only) ---
   const [cvDrafts, setCvDrafts] = useState<CVDraft[]>([]);
@@ -139,7 +146,8 @@ export default function PersonnelSheet({
       reset(personnel ? toFormValues(personnel) : emptyValues);
       setCvDrafts([]);
       setCvInput({ label: "", url: "", notes: "", isLatest: true });
-      setCvFormOpen(false);
+      // CR-18: Auto-open CV form in create mode for better discoverability
+      setCvFormOpen(!personnel);
       setCvInputError(null);
     }
   }, [open, personnel, reset]);
@@ -147,8 +155,8 @@ export default function PersonnelSheet({
   // --- Add CV draft to list ---
   function handleAddCVDraft() {
     const { label, url } = cvInput;
-    if (!label.trim()) { setCvInputError("Label is required"); return; }
-    if (!url.trim()) { setCvInputError("URL is required"); return; }
+    if (!label.trim()) { setCvInputError(t.personnel.cvLabel + " is required"); return; }
+    if (!url.trim()) { setCvInputError(t.personnel.cvUrl + " is required"); return; }
     try { new URL(url); } catch { setCvInputError("Must be a valid URL (https://...)"); return; }
 
     const draft: CVDraft = {
@@ -174,11 +182,19 @@ export default function PersonnelSheet({
 
   // --- Submit ---
   async function onSubmit(data: PersonnelFormValues) {
+    // CR-08: CV is required when creating new personnel
+    if (!isEdit && cvDrafts.length === 0) {
+      toast.error(t.personnel.cvRequiredError);
+      setCvFormOpen(true);
+      return;
+    }
+
     const payload = {
       vendorId: data.vendorId,
       fullName: data.fullName,
       jobTypeId: data.jobTypeId,
       techStackId: data.techStackId || null,
+      additionalTechStackIds: data.additionalTechStackIds ?? [], // CR-09
       levelId: data.levelId,
       domainId: data.domainId || null,
       englishLevel: data.englishLevel,
@@ -186,7 +202,7 @@ export default function PersonnelSheet({
       leadershipNote: data.leadershipNote || undefined,
       vendorRateActual:
         data.vendorRateActual && data.vendorRateActual !== ""
-          ? parseFloat(data.vendorRateActual)
+          ? Math.round(parseFloat(data.vendorRateActual))
           : undefined,
       status: data.status,
       interviewStatus: data.interviewStatus,
@@ -196,7 +212,7 @@ export default function PersonnelSheet({
     if (isEdit && personnel) {
       const result = await updatePersonnel(personnel.id, payload);
       if (!result.success) { toast.error(result.error); return; }
-      toast.success("Personnel updated");
+      toast.success(t.personnel.updatedSuccess);
     } else {
       const result = await createPersonnel(payload);
       if (!result.success) { toast.error(result.error); return; }
@@ -217,9 +233,9 @@ export default function PersonnelSheet({
             toast.error(`CV "${draft.label}": ${cvResult.error}`);
           }
         }
-        toast.success(`Personnel created with ${cvDrafts.length} CV${cvDrafts.length > 1 ? "s" : ""}`);
+        toast.success(t.personnel.createdWithCv);
       } else {
-        toast.success("Personnel created");
+        toast.success(t.personnel.createdSuccess);
       }
     }
 
@@ -236,7 +252,7 @@ export default function PersonnelSheet({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <h2 className="text-lg font-semibold text-gray-900">
-            {isEdit ? "Edit Personnel" : "Add Personnel"}
+            {isEdit ? t.personnel.editPersonnel : t.personnel.addPersonnel}
           </h2>
           <button
             onClick={onClose}
@@ -251,16 +267,21 @@ export default function PersonnelSheet({
           onSubmit={handleSubmit(onSubmit)}
           className="flex-1 overflow-y-auto px-6 py-4 space-y-4"
         >
+          {/* ── Section 1: Basic Info ────────────────────────────── */}
+          <div className="border-b border-gray-100 pb-1 mb-3">
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">① Basic Info</h3>
+          </div>
+
           {/* Vendor */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Vendor <span className="text-red-500">*</span>
+              {t.personnel.vendor} <span className="text-red-500">*</span>
             </label>
             <select
               {...register("vendorId")}
               className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">— Select vendor —</option>
+              <option value="">— {t.personnel.selectVendor} —</option>
               {vendors.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.name}
@@ -275,7 +296,7 @@ export default function PersonnelSheet({
           {/* Full Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Full Name <span className="text-red-500">*</span>
+              {t.personnel.fullName} <span className="text-red-500">*</span>
             </label>
             <input
               {...register("fullName")}
@@ -287,17 +308,22 @@ export default function PersonnelSheet({
             )}
           </div>
 
+          {/* ── Section 2: Skills & Assessment ───────────────────── */}
+          <div className="border-b border-gray-100 pb-1 mb-3 mt-6">
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">② Skills & Assessment</h3>
+          </div>
+
           {/* Job Type + Tech Stack */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Job Type <span className="text-red-500">*</span>
+                {t.vendor.jobType} <span className="text-red-500">*</span>
               </label>
               <select
                 {...register("jobTypeId")}
                 className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">— Select —</option>
+                <option value="">— {t.personnel.selectOption} —</option>
                 {jobTypes.map((j) => (
                   <option key={j.id} value={j.id}>
                     {j.name}
@@ -310,20 +336,57 @@ export default function PersonnelSheet({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tech Stack
+                {t.personnel.techStackPrimary}
                 <span className="text-gray-400 text-xs font-normal ml-1">(optional)</span>
               </label>
               <select
                 {...register("techStackId")}
                 className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">— Not applicable —</option>
-                {techStacks.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
+                <option value="">— {t.personnel.notApplicable} —</option>
+                {techStacks.map((ts) => (
+                  <option key={ts.id} value={ts.id}>
+                    {ts.name}
                   </option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          {/* CR-09: Additional Tech Stacks */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t.personnel.additionalTechStacks}
+              <span className="text-gray-400 text-xs font-normal ml-1">(max 2)</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {techStacks.map((ts) => {
+                const isSelected = additionalTechStackIds.includes(ts.id);
+                const isDisabled = !isSelected && additionalTechStackIds.length >= 2;
+                return (
+                  <button
+                    key={ts.id}
+                    type="button"
+                    disabled={isDisabled}
+                    onClick={() => {
+                      if (isSelected) {
+                        setValue("additionalTechStackIds", additionalTechStackIds.filter((id) => id !== ts.id));
+                      } else if (!isDisabled) {
+                        setValue("additionalTechStackIds", [...additionalTechStackIds, ts.id]);
+                      }
+                    }}
+                    className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                      isSelected
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : isDisabled
+                          ? "bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed"
+                          : "bg-white text-gray-600 border-gray-300 hover:border-blue-400"
+                    }`}
+                  >
+                    {ts.name}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -331,13 +394,13 @@ export default function PersonnelSheet({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Level <span className="text-red-500">*</span>
+                {t.vendor.level} <span className="text-red-500">*</span>
               </label>
               <select
                 {...register("levelId")}
                 className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">— Select —</option>
+                <option value="">— {t.personnel.selectOption} —</option>
                 {levels.map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.name}
@@ -350,14 +413,14 @@ export default function PersonnelSheet({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Domain
+                {t.personnel.domain}
                 <span className="text-gray-400 text-xs font-normal ml-1">(optional)</span>
               </label>
               <select
                 {...register("domainId")}
                 className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">— Not applicable —</option>
+                <option value="">— {t.personnel.notApplicable} —</option>
                 {domains.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
@@ -371,7 +434,7 @@ export default function PersonnelSheet({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                English Level
+                {t.personnel.englishLevel}
               </label>
               <select
                 {...register("englishLevel")}
@@ -385,15 +448,15 @@ export default function PersonnelSheet({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Status
+                {t.common.status}
               </label>
               <select
                 {...register("status")}
                 className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="AVAILABLE">Available</option>
-                <option value="ON_PROJECT">On Project</option>
-                <option value="ENDED">Ended</option>
+                <option value="AVAILABLE">{t.common.statusAvailable}</option>
+                <option value="ON_PROJECT">{t.common.statusOnProject}</option>
+                <option value="ENDED">{t.common.statusEnded}</option>
               </select>
             </div>
           </div>
@@ -401,18 +464,18 @@ export default function PersonnelSheet({
           {/* Interview Status */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Interview Status
+              {t.personnel.interviewStatus}
             </label>
             <select
               {...register("interviewStatus")}
               className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="NEW">New</option>
-              <option value="SCREENING">Screening</option>
-              <option value="TECHNICAL_TEST">Technical Test</option>
-              <option value="INTERVIEW">Interview</option>
-              <option value="PASSED">Passed</option>
-              <option value="FAILED">Failed</option>
+              <option value="NEW">{t.common.interviewNew}</option>
+              <option value="SCREENING">{t.common.interviewScreening}</option>
+              <option value="TECHNICAL_TEST">{t.common.interviewTechnicalTest}</option>
+              <option value="INTERVIEW">{t.common.interviewInterview}</option>
+              <option value="PASSED">{t.common.interviewPassed}</option>
+              <option value="FAILED">{t.common.interviewFailed}</option>
             </select>
           </div>
 
@@ -425,7 +488,10 @@ export default function PersonnelSheet({
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <span className="text-sm font-medium text-gray-700">
-                Has leadership experience
+                {t.personnel.leadershipLabel}
+              </span>
+              <span className="text-xs text-gray-400">
+                ({t.personnel.leadershipNote})
               </span>
             </label>
           </div>
@@ -434,22 +500,26 @@ export default function PersonnelSheet({
           {leadership && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Leadership Note
+                {t.personnel.leadershipLabel} — {t.common.notes}
               </label>
               <textarea
                 {...register("leadershipNote")}
                 rows={2}
                 className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                placeholder="Describe leadership experience..."
               />
             </div>
           )}
+
+          {/* ── Section 3: Rate & Notes ──────────────────────────── */}
+          <div className="border-b border-gray-100 pb-1 mb-3 mt-6">
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">③ Rate & Notes</h3>
+          </div>
 
           {/* Vendor Rate — DU_LEADER only */}
           {isDULeader && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Vendor Rate (USD/month)
+                {t.personnel.vendorRateUsd}
               </label>
               <input
                 {...register("vendorRateActual")}
@@ -465,26 +535,36 @@ export default function PersonnelSheet({
           {/* Notes */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Notes
+              {t.common.notes}
             </label>
             <textarea
               {...register("notes")}
               rows={3}
               className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              placeholder="Additional notes..."
             />
+          </div>
+
+          {/* ── Section 4: CV Files ──────────────────────────── */}
+          <div className="border-b border-gray-100 pb-1 mb-3 mt-6">
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">④ CV Files</h3>
           </div>
 
           {/* ── CV Section — create mode only ───────────────────────────── */}
           {!isEdit && (
-            <div className="border rounded-lg overflow-hidden">
+            <div className={`border rounded-lg overflow-hidden ${cvDrafts.length === 0 ? "border-amber-300 bg-amber-50/30" : ""}`}>
               {/* CV header */}
               <div className="flex items-center justify-between bg-gray-50 px-4 py-2.5 border-b">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-gray-700">CV / Resume</span>
-                  {cvDrafts.length > 0 && (
-                    <span className="inline-flex px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-blue-100 text-blue-700">
-                      {cvDrafts.length}
+                  <span className="text-sm font-medium text-gray-700">
+                    {t.personnel.cvRequired}
+                  </span>
+                  {cvDrafts.length > 0 ? (
+                    <span className="inline-flex px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-green-100 text-green-700">
+                      ✓ {cvDrafts.length}
+                    </span>
+                  ) : (
+                    <span className="inline-flex px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-100 text-amber-700">
+                      !
                     </span>
                   )}
                 </div>
@@ -494,7 +574,7 @@ export default function PersonnelSheet({
                     onClick={() => { setCvFormOpen(true); setCvInputError(null); }}
                     className="text-xs text-blue-600 hover:text-blue-800 font-medium"
                   >
-                    + Add CV
+                    + {t.personnel.addCv}
                   </button>
                 )}
               </div>
@@ -509,7 +589,7 @@ export default function PersonnelSheet({
                           <span className="font-medium text-gray-800 truncate">{d.label}</span>
                           {d.isLatest && (
                             <span className="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700">
-                              Latest
+                              {t.personnel.cvLatest}
                             </span>
                           )}
                         </div>
@@ -520,7 +600,7 @@ export default function PersonnelSheet({
                         onClick={() => removeCVDraft(d._id)}
                         className="ml-3 text-xs text-red-400 hover:text-red-600 shrink-0"
                       >
-                        Remove
+                        {t.common.delete}
                       </button>
                     </li>
                   ))}
@@ -530,7 +610,7 @@ export default function PersonnelSheet({
               {/* Empty state */}
               {cvDrafts.length === 0 && !cvFormOpen && (
                 <p className="px-4 py-3 text-xs text-gray-400">
-                  No CVs added. Click &quot;+ Add CV&quot; to attach a CV link.
+                  {t.personnel.noCvAdded}
                 </p>
               )}
 
@@ -540,14 +620,14 @@ export default function PersonnelSheet({
                   {/* Label */}
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Label <span className="text-red-500">*</span>
+                      {t.personnel.cvLabel} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={cvInput.label}
                       onChange={(e) => setCvInput((p) => ({ ...p, label: e.target.value }))}
                       className="w-full border rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                      placeholder='e.g. "CV v1 - Backend", "Updated Mar 2026"'
+                      placeholder={t.personnel.cvLabelPlaceholder}
                       autoFocus
                     />
                   </div>
@@ -555,28 +635,28 @@ export default function PersonnelSheet({
                   {/* URL */}
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
-                      URL (Google Drive / link download) <span className="text-red-500">*</span>
+                      {t.personnel.cvUrl} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="url"
                       value={cvInput.url}
                       onChange={(e) => setCvInput((p) => ({ ...p, url: e.target.value }))}
                       className="w-full border rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                      placeholder="https://drive.google.com/file/d/..."
+                      placeholder={t.personnel.cvUrlPlaceholder}
                     />
                   </div>
 
                   {/* Notes */}
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Notes <span className="text-gray-400 font-normal">(optional)</span>
+                      {t.personnel.cvNotes} <span className="text-gray-400 font-normal">(optional)</span>
                     </label>
                     <input
                       type="text"
                       value={cvInput.notes}
                       onChange={(e) => setCvInput((p) => ({ ...p, notes: e.target.value }))}
                       className="w-full border rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                      placeholder="e.g. Java focused, includes cover letter..."
+                      placeholder={t.personnel.cvNotesPlaceholder}
                     />
                   </div>
 
@@ -588,7 +668,7 @@ export default function PersonnelSheet({
                       onChange={(e) => setCvInput((p) => ({ ...p, isLatest: e.target.checked }))}
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
-                    <span className="text-xs text-gray-700">Mark as latest CV</span>
+                    <span className="text-xs text-gray-700">{t.personnel.markAsLatest}</span>
                   </label>
 
                   {/* Error */}
@@ -603,14 +683,14 @@ export default function PersonnelSheet({
                       onClick={handleAddCVDraft}
                       className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700"
                     >
-                      Add
+                      {t.common.add}
                     </button>
                     <button
                       type="button"
                       onClick={() => { setCvFormOpen(false); setCvInputError(null); }}
                       className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-800"
                     >
-                      Cancel
+                      {t.common.cancel}
                     </button>
                   </div>
                 </div>
@@ -622,16 +702,14 @@ export default function PersonnelSheet({
         {/* Footer */}
         <div className="px-6 py-4 border-t flex justify-end gap-3">
           <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
-            Cancel
+            {t.common.cancel}
           </Button>
           <Button onClick={handleSubmit(onSubmit)} disabled={isSubmitting}>
             {isSubmitting
-              ? isEdit
-                ? "Saving..."
-                : "Creating..."
+              ? t.common.saving
               : isEdit
-                ? "Save Changes"
-                : "Add Personnel"}
+                ? t.common.save
+                : t.personnel.addPersonnel}
           </Button>
         </div>
       </div>

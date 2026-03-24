@@ -203,24 +203,45 @@ export async function getProjectRateBreakdown(
     marketRateFactors,
   };
 
-  // Batch fetch norms + project overrides
-  const personnelList = assignments.map((a) => a.personnel);
-  const normKeySet = new Set(
-    personnelList.map(
-      (p) => `${p.jobTypeId}|${p.techStackId}|${p.levelId}|${p.domainId}|${p.vendor.marketCode}`
-    )
-  );
+  // Fetch fallback lookup IDs (Generic tech stack + General domain)
+  const [genericStackRow, generalDomainRow] = await Promise.all([
+    db.techStack.findFirst({ where: { name: "Generic" }, select: { id: true } }),
+    db.domain.findFirst({ where: { name: "General" }, select: { id: true } }),
+  ]);
+  const GENERIC_STACK_ID = genericStackRow?.id ?? null;
+  const GENERAL_DOMAIN_ID = generalDomainRow?.id ?? null;
+
+  // Build deduped candidate norm conditions (Phương án 3: exact → General domain → Generic+General)
+  type NormCond = { jobTypeId: string; techStackId: string; levelId: string; domainId: string; marketCode: string };
+  const conditionSet = new Map<string, NormCond>();
+
+  function addCandidate(c: NormCond) {
+    conditionSet.set(`${c.jobTypeId}|${c.techStackId}|${c.levelId}|${c.domainId}|${c.marketCode}`, c);
+  }
+
+  for (const a of assignments) {
+    const p = a.personnel;
+    const mc = a.project.marketCode;
+    // Null-map: null techStack → Generic, null domain → General
+    const ts = p.techStackId ?? GENERIC_STACK_ID;
+    const dom = p.domainId ?? GENERAL_DOMAIN_ID;
+    if (!ts || !dom) continue;
+
+    // Try 1: effective exact (null already mapped to Generic/General)
+    addCandidate({ jobTypeId: p.jobTypeId, techStackId: ts, levelId: p.levelId, domainId: dom, marketCode: mc });
+    // Try 2: same effective stack + General domain (if domain was specific and differs)
+    if (dom !== GENERAL_DOMAIN_ID && GENERAL_DOMAIN_ID) {
+      addCandidate({ jobTypeId: p.jobTypeId, techStackId: ts, levelId: p.levelId, domainId: GENERAL_DOMAIN_ID, marketCode: mc });
+    }
+    // Try 3: Generic stack + General domain (ultimate fallback)
+    if (ts !== GENERIC_STACK_ID && GENERIC_STACK_ID && GENERAL_DOMAIN_ID) {
+      addCandidate({ jobTypeId: p.jobTypeId, techStackId: GENERIC_STACK_ID, levelId: p.levelId, domainId: GENERAL_DOMAIN_ID, marketCode: mc });
+    }
+  }
 
   const [allNorms, allOverrides] = await Promise.all([
-    normKeySet.size > 0
-      ? db.rateNorm.findMany({
-          where: {
-            OR: [...normKeySet].map((k) => {
-              const [jobTypeId, techStackId, levelId, domainId, marketCode] = k.split("|");
-              return { jobTypeId, techStackId, levelId, domainId, marketCode };
-            }),
-          },
-        })
+    conditionSet.size > 0
+      ? db.rateNorm.findMany({ where: { OR: [...conditionSet.values()] } })
       : Promise.resolve([]),
     db.projectRateOverride.findMany({ where: { projectId } }),
   ]);
@@ -240,10 +261,16 @@ export async function getProjectRateBreakdown(
 
   const rows: AssignmentRateRow[] = assignments.map((a) => {
     const p = a.personnel;
-    const normKey = `${p.jobTypeId}|${p.techStackId}|${p.levelId}|${p.domainId}|${p.vendor.marketCode}`;
+    const mc = a.project.marketCode;
+    // Null-map for resolution (same logic as candidate building)
+    const ts = p.techStackId ?? GENERIC_STACK_ID;
+    const dom = p.domainId ?? GENERAL_DOMAIN_ID;
+    // Fallback chain: exact → General domain → Generic+General
+    const norm =
+      (ts && dom ? normMap.get(`${p.jobTypeId}|${ts}|${p.levelId}|${dom}|${mc}`) : undefined) ??
+      (ts && GENERAL_DOMAIN_ID ? normMap.get(`${p.jobTypeId}|${ts}|${p.levelId}|${GENERAL_DOMAIN_ID}|${mc}`) : undefined) ??
+      (GENERIC_STACK_ID && GENERAL_DOMAIN_ID ? normMap.get(`${p.jobTypeId}|${GENERIC_STACK_ID}|${p.levelId}|${GENERAL_DOMAIN_ID}|${mc}`) : undefined);
     const overrideKey = `${p.jobTypeId}|${p.techStackId}|${p.levelId}|${p.domainId}`;
-
-    const norm = normMap.get(normKey);
     const override = overrideMap.get(overrideKey);
 
     const rates = calculateAssignmentRates(

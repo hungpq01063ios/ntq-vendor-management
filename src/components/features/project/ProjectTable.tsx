@@ -6,12 +6,17 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { softDeleteProject } from "@/actions/project.actions";
+import { useTranslations } from "@/i18n";
+import { useTableSort, SortableHeader } from "@/hooks/useTableSort";
 import ProjectSheet from "./ProjectSheet";
 import type { Project, MarketConfig } from "@/types";
 
 type ProjectRow = Project & {
   assignments: { id: string; status: string }[];
 };
+
+type DomainItem = { id: string; name: string };
+type TechStackItem = { id: string; name: string };
 
 const MARKET_LABELS: Record<string, string> = {
   ENGLISH: "English",
@@ -30,9 +35,11 @@ interface Props {
   projects: ProjectRow[];
   isDULeader: boolean;
   markets: MarketConfig[];
+  domains: DomainItem[];       // CR-11
+  techStacks: TechStackItem[]; // CR-11
 }
 
-export default function ProjectTable({ projects, isDULeader, markets }: Props) {
+export default function ProjectTable({ projects, isDULeader, markets, domains, techStacks }: Props) {
   const [search, setSearch] = useState("");
   const [marketFilter, setMarketFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -53,6 +60,18 @@ export default function ProjectTable({ projects, isDULeader, markets }: Props) {
       return matchSearch && matchMarket && matchStatus;
     });
   }, [projects, search, marketFilter, statusFilter]);
+
+  // CR-28: Table sorting
+  const sortableData = useMemo(() =>
+    filtered.map((p) => ({
+      ...p,
+      _headcount: p.assignments.filter((a) => a.status === "ACTIVE").length,
+      _startDate: new Date(p.startDate).getTime(),
+    })),
+    [filtered]
+  );
+  const { sorted, sortKey, sortDir, toggleSort } = useTableSort(sortableData, "name", "asc");
+  const { t } = useTranslations();
 
   function openEdit(p: Project) {
     setSelectedProject(p);
@@ -89,7 +108,7 @@ export default function ProjectTable({ projects, isDULeader, markets }: Props) {
           onChange={(e) => setMarketFilter(e.target.value)}
           className="border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <option value="">All Markets</option>
+          <option value="">{t.common.allStatuses}</option>
           {markets.map((m) => (
             <option key={m.code} value={m.code}>{m.name}</option>
           ))}
@@ -99,10 +118,10 @@ export default function ProjectTable({ projects, isDULeader, markets }: Props) {
           onChange={(e) => setStatusFilter(e.target.value)}
           className="border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <option value="">All Statuses</option>
-          <option value="ACTIVE">Active</option>
-          <option value="ON_HOLD">On Hold</option>
-          <option value="ENDED">Ended</option>
+          <option value="">{t.common.allStatuses}</option>
+          <option value="ACTIVE">{t.common.statusActive}</option>
+          <option value="ON_HOLD">{t.common.statusOnHold}</option>
+          <option value="ENDED">{t.common.statusEnded}</option>
         </select>
         <div className="ml-auto">
           <Button
@@ -111,7 +130,7 @@ export default function ProjectTable({ projects, isDULeader, markets }: Props) {
               setSheetOpen(true);
             }}
           >
-            + New Project
+            {t.project.addProject}
           </Button>
         </div>
       </div>
@@ -149,41 +168,27 @@ export default function ProjectTable({ projects, isDULeader, markets }: Props) {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">
-                Project Name
-              </th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">
-                Client
-              </th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">
-                Market
-              </th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">
-                Headcount
-              </th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">
-                Start Date
-              </th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">
-                Status
-              </th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">
-                Actions
-              </th>
+              <SortableHeader label={t.common.name} sortKey="name" currentSortKey={sortKey} currentSortDir={sortDir} onToggle={toggleSort} />
+              <SortableHeader label={t.project.clientName} sortKey="clientName" currentSortKey={sortKey} currentSortDir={sortDir} onToggle={toggleSort} />
+              <th className="text-left px-4 py-3 font-medium text-gray-600">{t.project.market}</th>
+              <SortableHeader label={t.vendor.headcount} sortKey="_headcount" currentSortKey={sortKey} currentSortDir={sortDir} onToggle={toggleSort} />
+              <SortableHeader label={t.project.startDate} sortKey="_startDate" currentSortKey={sortKey} currentSortDir={sortDir} onToggle={toggleSort} />
+              <SortableHeader label={t.common.status} sortKey="status" currentSortKey={sortKey} currentSortDir={sortDir} onToggle={toggleSort} />
+              <th className="text-left px-4 py-3 font-medium text-gray-600">{t.common.actions}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {filtered.length === 0 && (
+            {sorted.length === 0 && (
               <tr>
                 <td
                   colSpan={7}
                   className="px-4 py-8 text-center text-gray-400"
                 >
-                  No projects found.
+                  {t.project.noProjects}
                 </td>
               </tr>
             )}
-            {filtered.map((p) => {
+            {sorted.map((p) => {
               const activeCount = p.assignments.filter(
                 (a) => a.status === "ACTIVE"
               ).length;
@@ -213,20 +218,20 @@ export default function ProjectTable({ projects, isDULeader, markets }: Props) {
                         href={`/projects/${p.id}`}
                         className="text-blue-600 hover:underline text-xs"
                       >
-                        View
-                      </Link>
+                        {t.common.view}
+                    </Link>
+                    <button
+                      onClick={() => openEdit(p)}
+                      className="text-gray-600 hover:text-gray-900 text-xs"
+                    >
+                      {t.common.edit}
+                    </button>
+                    {isDULeader && (
                       <button
-                        onClick={() => openEdit(p)}
-                        className="text-gray-600 hover:text-gray-900 text-xs"
+                        onClick={() => setDeleteTarget(p)}
+                        className="text-red-500 hover:text-red-700 text-xs"
                       >
-                        Edit
-                      </button>
-                      {isDULeader && (
-                        <button
-                          onClick={() => setDeleteTarget(p)}
-                          className="text-red-500 hover:text-red-700 text-xs"
-                        >
-                          End
+                        {t.project.end}
                         </button>
                       )}
                     </div>
@@ -244,6 +249,8 @@ export default function ProjectTable({ projects, isDULeader, markets }: Props) {
         onClose={() => setSheetOpen(false)}
         project={selectedProject ?? undefined}
         markets={markets}
+        domains={domains}
+        techStacks={techStacks}
       />
 
       {/* Delete Confirmation */}

@@ -91,36 +91,40 @@ export async function getDashboardData(): Promise<DashboardData> {
     marketRateFactors,
   };
 
-  // Collect unique combos for batch fetching
-  const normKeySet = new Set<string>();
+  // Fetch fallback lookup IDs (Generic tech stack + General domain)
+  const [genericStackRow, generalDomainRow] = await Promise.all([
+    db.techStack.findFirst({ where: { name: "Generic" }, select: { id: true } }),
+    db.domain.findFirst({ where: { name: "General" }, select: { id: true } }),
+  ]);
+  const GENERIC_STACK_ID = genericStackRow?.id ?? null;
+  const GENERAL_DOMAIN_ID = generalDomainRow?.id ?? null;
+
+  // Build deduped candidate conditions (Phương án 3: exact → General domain → Generic+General)
+  type NormCond = { jobTypeId: string; techStackId: string; levelId: string; domainId: string; marketCode: string };
+  const conditionSet = new Map<string, NormCond>();
   const uniqueProjectIds = new Set<string>();
 
   for (const a of assignments) {
     const p = a.personnel;
-    normKeySet.add(
-      `${p.jobTypeId}|${p.techStackId}|${p.levelId}|${p.domainId}|${p.vendor.marketCode}`
-    );
+    const mc = a.project.marketCode;
+    const ts = p.techStackId ?? GENERIC_STACK_ID;
+    const dom = p.domainId ?? GENERAL_DOMAIN_ID;
     uniqueProjectIds.add(a.projectId);
+    if (!ts || !dom) continue;
+
+    const add = (c: NormCond) =>
+      conditionSet.set(`${c.jobTypeId}|${c.techStackId}|${c.levelId}|${c.domainId}|${c.marketCode}`, c);
+    add({ jobTypeId: p.jobTypeId, techStackId: ts, levelId: p.levelId, domainId: dom, marketCode: mc });
+    if (dom !== GENERAL_DOMAIN_ID && GENERAL_DOMAIN_ID)
+      add({ jobTypeId: p.jobTypeId, techStackId: ts, levelId: p.levelId, domainId: GENERAL_DOMAIN_ID, marketCode: mc });
+    if (ts !== GENERIC_STACK_ID && GENERIC_STACK_ID && GENERAL_DOMAIN_ID)
+      add({ jobTypeId: p.jobTypeId, techStackId: GENERIC_STACK_ID, levelId: p.levelId, domainId: GENERAL_DOMAIN_ID, marketCode: mc });
   }
 
   // Batch fetch rate norms + project overrides in parallel
   const [allNorms, allOverrides] = await Promise.all([
-    normKeySet.size > 0
-      ? db.rateNorm.findMany({
-          where: {
-            OR: [...normKeySet].map((k: string) => {
-              const [jobTypeId, techStackId, levelId, domainId, market] =
-                k.split("|");
-              return {
-                jobTypeId,
-                techStackId,
-                levelId,
-                domainId,
-                marketCode: market,
-              };
-            }),
-          },
-        })
+    conditionSet.size > 0
+      ? db.rateNorm.findMany({ where: { OR: [...conditionSet.values()] } })
       : Promise.resolve([]),
     uniqueProjectIds.size > 0
       ? db.projectRateOverride.findMany({
@@ -132,18 +136,12 @@ export async function getDashboardData(): Promise<DashboardData> {
   // Build lookup maps
   const normMap = new Map<string, (typeof allNorms)[0]>();
   for (const n of allNorms) {
-    normMap.set(
-      `${n.jobTypeId}|${n.techStackId}|${n.levelId}|${n.domainId}|${n.marketCode}`,
-      n
-    );
+    normMap.set(`${n.jobTypeId}|${n.techStackId}|${n.levelId}|${n.domainId}|${n.marketCode}`, n);
   }
 
   const overrideMap = new Map<string, (typeof allOverrides)[0]>();
   for (const o of allOverrides) {
-    overrideMap.set(
-      `${o.projectId}|${o.jobTypeId}|${o.techStackId}|${o.levelId}|${o.domainId}`,
-      o
-    );
+    overrideMap.set(`${o.projectId}|${o.jobTypeId}|${o.techStackId}|${o.levelId}|${o.domainId}`, o);
   }
 
   // Per-project and per-vendor aggregation
@@ -161,10 +159,16 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   for (const a of assignments) {
     const p = a.personnel;
-    const normKey = `${p.jobTypeId}|${p.techStackId}|${p.levelId}|${p.domainId}|${p.vendor.marketCode}`;
+    const mc = a.project.marketCode;
+    const ts = p.techStackId ?? GENERIC_STACK_ID;
+    const dom = p.domainId ?? GENERAL_DOMAIN_ID;
+    // Fallback chain: exact → General domain → Generic+General
+    const norm =
+      (ts && dom ? normMap.get(`${p.jobTypeId}|${ts}|${p.levelId}|${dom}|${mc}`) : undefined) ??
+      (ts && GENERAL_DOMAIN_ID ? normMap.get(`${p.jobTypeId}|${ts}|${p.levelId}|${GENERAL_DOMAIN_ID}|${mc}`) : undefined) ??
+      (GENERIC_STACK_ID && GENERAL_DOMAIN_ID ? normMap.get(`${p.jobTypeId}|${GENERIC_STACK_ID}|${p.levelId}|${GENERAL_DOMAIN_ID}|${mc}`) : undefined);
+    // Rule: norm market = project.marketCode
     const overrideKey = `${a.projectId}|${p.jobTypeId}|${p.techStackId}|${p.levelId}|${p.domainId}`;
-
-    const norm = normMap.get(normKey);
     const override = overrideMap.get(overrideKey);
 
     const rateResult = calculateAssignmentRates(

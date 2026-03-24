@@ -6,12 +6,15 @@ export const VendorSchema = z.object({
   contactName: z.string().min(1, "Contact name is required"),
   contactEmail: z.string().email("Invalid email"),
   contactPhone: z.string().optional(),
+  website: z.string().url("Invalid URL").optional().or(z.literal("")),
   companySize: z.number().int().positive().optional(),
-  marketCode: z.string().default("ENGLISH"),
   languageStrength: z.array(z.string()).default([]),
   status: z.enum(["ACTIVE", "INACTIVE", "ON_HOLD"]).default("ACTIVE"),
   startDate: z.date().optional(),
   notes: z.string().optional(),
+  performanceRating: z.number().int().min(1).max(5).optional(),
+  responseSpeedRating: z.number().int().min(1).max(5).optional(),
+  performanceNote: z.string().optional(),
 });
 
 // ─── Personnel ────────────────────────────────────────────────────────────────
@@ -19,7 +22,8 @@ export const PersonnelSchema = z.object({
   vendorId: z.string().min(1),
   fullName: z.string().min(1, "Full name is required"),
   jobTypeId: z.string().min(1, "Job type is required"),
-  techStackId: z.string().optional().nullable(),   // Optional — BA/PM may not have a stack
+  techStackId: z.string().optional().nullable(),   // Optional — BA/PM may not have a stack (primary)
+  additionalTechStackIds: z.array(z.string()).default([]), // CR-09: up to 2 more stacks
   levelId: z.string().min(1, "Level is required"),
   domainId: z.string().optional().nullable(),       // Optional — not all roles need domain
   englishLevel: z
@@ -46,6 +50,8 @@ export const ProjectSchema = z.object({
   endDate: z.date().optional(),
   status: z.enum(["ACTIVE", "ON_HOLD", "ENDED"]).default("ACTIVE"),
   notes: z.string().optional(),
+  domainId: z.string().optional().nullable(),   // CR-11
+  techStackId: z.string().optional().nullable(), // CR-11
 });
 
 // ─── Assignment ────────────────────────────────────────────────────────────────

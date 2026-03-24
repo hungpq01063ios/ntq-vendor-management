@@ -54,10 +54,40 @@ export async function checkAndCreateDriftAlerts(): Promise<
     // 2. Load all active assignments with personnel
     const assignments = await db.assignment.findMany({
       where: { status: "ACTIVE" },
-      include: { personnel: { include: { vendor: true } } },
+      include: { personnel: { include: { vendor: true } }, project: true },
     });
 
-    // 3. Group by jobTypeId + techStackId + levelId
+    // Fetch fallback IDs (Phương án 3)
+    const [genericStackRow, generalDomainRow] = await Promise.all([
+      db.techStack.findFirst({ where: { name: "Generic" }, select: { id: true } }),
+      db.domain.findFirst({ where: { name: "General" }, select: { id: true } }),
+    ]);
+    const GENERIC_STACK_ID = genericStackRow?.id ?? null;
+    const GENERAL_DOMAIN_ID = generalDomainRow?.id ?? null;
+
+    // Build candidate norm conditions for batch fetch
+    type NormCond = { jobTypeId: string; techStackId: string; levelId: string; domainId: string; marketCode: string };
+    const conditionSet = new Map<string, NormCond>();
+    for (const a of assignments) {
+      const p = a.personnel;
+      const mc = a.project.marketCode;
+      const ts = p.techStackId ?? GENERIC_STACK_ID;
+      const dom = p.domainId ?? GENERAL_DOMAIN_ID;
+      if (!ts || !dom) continue;
+      const add = (c: NormCond) =>
+        conditionSet.set(`${c.jobTypeId}|${c.techStackId}|${c.levelId}|${c.domainId}|${c.marketCode}`, c);
+      add({ jobTypeId: p.jobTypeId, techStackId: ts, levelId: p.levelId, domainId: dom, marketCode: mc });
+      if (dom !== GENERAL_DOMAIN_ID && GENERAL_DOMAIN_ID)
+        add({ jobTypeId: p.jobTypeId, techStackId: ts, levelId: p.levelId, domainId: GENERAL_DOMAIN_ID, marketCode: mc });
+      if (ts !== GENERIC_STACK_ID && GENERIC_STACK_ID && GENERAL_DOMAIN_ID)
+        add({ jobTypeId: p.jobTypeId, techStackId: GENERIC_STACK_ID, levelId: p.levelId, domainId: GENERAL_DOMAIN_ID, marketCode: mc });
+    }
+    const allNorms = conditionSet.size > 0
+      ? await db.rateNorm.findMany({ where: { OR: [...conditionSet.values()] } })
+      : [];
+    const normMap = new Map(allNorms.map((n) => [`${n.jobTypeId}|${n.techStackId}|${n.levelId}|${n.domainId}|${n.marketCode}`, n]));
+
+    // 3. Group by jobTypeId + techStackId + levelId + domainId + market
     type GroupData = {
       jobTypeId: string;
       techStackId: string | null;
@@ -69,17 +99,17 @@ export async function checkAndCreateDriftAlerts(): Promise<
 
     for (const a of assignments) {
       const p = a.personnel;
-      const key = `${p.jobTypeId}|${p.techStackId}|${p.levelId}`;
+      const mc = a.project.marketCode;
+      const key = `${p.jobTypeId}|${p.techStackId}|${p.levelId}|${p.domainId}|${mc}`;
 
       if (!groups.has(key)) {
-        const norm = await db.rateNorm.findFirst({
-          where: {
-            jobTypeId: p.jobTypeId,
-            techStackId: p.techStackId ?? undefined,
-            levelId: p.levelId,
-            marketCode: p.vendor.marketCode,
-          },
-        });
+        const ts = p.techStackId ?? GENERIC_STACK_ID;
+        const dom = p.domainId ?? GENERAL_DOMAIN_ID;
+        // Fallback chain: exact → General domain → Generic+General
+        const norm =
+          (ts && dom ? normMap.get(`${p.jobTypeId}|${ts}|${p.levelId}|${dom}|${mc}`) : undefined) ??
+          (ts && GENERAL_DOMAIN_ID ? normMap.get(`${p.jobTypeId}|${ts}|${p.levelId}|${GENERAL_DOMAIN_ID}|${mc}`) : undefined) ??
+          (GENERIC_STACK_ID && GENERAL_DOMAIN_ID ? normMap.get(`${p.jobTypeId}|${GENERIC_STACK_ID}|${p.levelId}|${GENERAL_DOMAIN_ID}|${mc}`) : undefined);
         groups.set(key, {
           jobTypeId: p.jobTypeId,
           techStackId: p.techStackId,

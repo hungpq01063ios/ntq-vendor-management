@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { endAssignment, deleteAssignment } from "@/actions/assignment.actions";
+import { useTranslations } from "@/i18n";
 import AssignmentSheet from "./AssignmentSheet";
 import type {
   Assignment,
@@ -71,6 +72,7 @@ export default function AssignmentSection({
   rateRows,
 }: Props) {
   const router = useRouter();
+  const { t } = useTranslations();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<AssignmentRowWithPersonnelRelations | null>(null);
   const [endingId, setEndingId] = useState<string | null>(null);
@@ -99,7 +101,7 @@ export default function AssignmentSection({
     const result = await endAssignment(id);
     setEndingId(null);
     if (result.success) {
-      toast.success("Assignment ended");
+      toast.success(t.project.assignmentEnded);
       router.refresh();
     } else {
       toast.error(result.error);
@@ -107,12 +109,12 @@ export default function AssignmentSection({
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Xóa assignment này? Hành động này không thể hoàn tác.")) return;
+    if (!confirm(t.rate.deleteRateNormConfirm)) return;
     setDeletingId(id);
     const result = await deleteAssignment(id);
     setDeletingId(null);
     if (result.success) {
-      toast.success("Assignment deleted");
+      toast.success(t.project.assignmentDeleted);
       router.refresh();
     } else {
       toast.error(result.error);
@@ -123,10 +125,10 @@ export default function AssignmentSection({
     <div className="bg-white rounded-lg border">
       <div className="flex items-center justify-between px-6 py-4 border-b">
         <h2 className="text-lg font-semibold text-gray-900">
-          Assignments ({assignments.length})
+          {t.project.assignments} ({assignments.length})
         </h2>
         <Button onClick={openCreate} size="sm">
-          + Add Assignment
+          {t.project.addAssignment}
         </Button>
       </div>
 
@@ -134,15 +136,15 @@ export default function AssignmentSection({
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Personnel</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Vendor</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Role</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Start</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-600">Billing Rate</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-600">Vendor Rate</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-600">Margin</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">{t.personnel.vendor}</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">{t.personnel.vendor}</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">{t.project.roleInProject}</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">{t.project.startDate}</th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">{t.project.billingRate}</th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">{t.project.vendorRate}</th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">{t.project.margin}</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">{t.common.status}</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">{t.common.actions}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -152,7 +154,7 @@ export default function AssignmentSection({
                   colSpan={9}
                   className="px-4 py-8 text-center text-gray-400"
                 >
-                  No assignments yet. Click &quot;+ Add Assignment&quot; to get started.
+                  {t.project.noAssignments} {t.project.noAssignmentsHint}
                 </td>
               </tr>
             )}
@@ -274,7 +276,7 @@ export default function AssignmentSection({
                           disabled={endingId === a.id}
                           className="text-xs text-orange-500 hover:text-orange-700 disabled:opacity-50"
                         >
-                          {endingId === a.id ? "Ending…" : "End"}
+                          {endingId === a.id ? t.project.ending : t.project.end}
                         </button>
                       )}
 
@@ -285,7 +287,7 @@ export default function AssignmentSection({
                           disabled={deletingId === a.id}
                           className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
                         >
-                          {deletingId === a.id ? "Deleting…" : "Delete"}
+                          {deletingId === a.id ? t.common.loading : t.common.delete}
                         </button>
                       )}
                     </div>

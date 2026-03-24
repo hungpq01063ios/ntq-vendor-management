@@ -10,6 +10,9 @@ import { Button } from "@/components/ui/button";
 import { createProject, updateProject } from "@/actions/project.actions";
 import type { Project, MarketConfig } from "@/types";
 
+type DomainItem = { id: string; name: string };
+type TechStackItem = { id: string; name: string };
+
 const ProjectFormSchema = z.object({
   name: z.string().min(1, "Project name is required"),
   clientName: z.string().min(1, "Client name is required"),
@@ -18,6 +21,8 @@ const ProjectFormSchema = z.object({
   startDate: z.string().min(1, "Start date is required"),
   endDate: z.string().optional(),
   notes: z.string().optional(),
+  domainId: z.string().optional(),   // CR-11
+  techStackId: z.string().optional(), // CR-11
 });
 
 type ProjectFormValues = z.infer<typeof ProjectFormSchema>;
@@ -33,6 +38,8 @@ function toFormValues(p: Project): ProjectFormValues {
       ? new Date(p.endDate).toISOString().split("T")[0]
       : "",
     notes: p.notes ?? "",
+    domainId: (p as { domainId?: string | null }).domainId ?? "",
+    techStackId: (p as { techStackId?: string | null }).techStackId ?? "",
   };
 }
 
@@ -44,6 +51,8 @@ const emptyValues: ProjectFormValues = {
   startDate: "",
   endDate: "",
   notes: "",
+  domainId: "",
+  techStackId: "",
 };
 
 interface Props {
@@ -51,9 +60,11 @@ interface Props {
   onClose: () => void;
   project?: Project;
   markets: MarketConfig[];
+  domains: DomainItem[];      // CR-11
+  techStacks: TechStackItem[]; // CR-11
 }
 
-export default function ProjectSheet({ open, onClose, project, markets }: Props) {
+export default function ProjectSheet({ open, onClose, project, markets, domains, techStacks }: Props) {
   const isEdit = !!project;
   const router = useRouter();
 
@@ -82,6 +93,8 @@ export default function ProjectSheet({ open, onClose, project, markets }: Props)
       startDate: new Date(data.startDate),
       endDate: data.endDate ? new Date(data.endDate) : undefined,
       notes: data.notes || undefined,
+      domainId: data.domainId || null,
+      techStackId: data.techStackId || null,
     };
 
     if (isEdit && project) {
@@ -209,6 +222,40 @@ export default function ProjectSheet({ open, onClose, project, markets }: Props)
                 type="date"
                 className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+          </div>
+
+          {/* Domain + TechStack - CR-11 */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Domain
+                <span className="text-gray-400 text-xs font-normal ml-1">(optional)</span>
+              </label>
+              <select
+                {...register("domainId")}
+                className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">— Chọn domain —</option>
+                {domains.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Tech Stack
+                <span className="text-gray-400 text-xs font-normal ml-1">(optional)</span>
+              </label>
+              <select
+                {...register("techStackId")}
+                className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">— Chọn tech stack —</option>
+                {techStacks.map((ts) => (
+                  <option key={ts.id} value={ts.id}>{ts.name}</option>
+                ))}
+              </select>
             </div>
           </div>
 

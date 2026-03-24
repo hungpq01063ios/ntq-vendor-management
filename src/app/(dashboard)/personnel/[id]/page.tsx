@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { auth } from "@/lib/auth";
+import { getSessionWithRole } from "@/lib/auth-helpers";
 import { getPersonnelById } from "@/actions/personnel.actions";
 import { getFormLookups } from "@/actions/lookup.actions";
 import { getCVsByPersonnel } from "@/actions/cv.actions";
@@ -35,17 +35,14 @@ export default async function PersonnelDetailPage({
 }) {
   const { id } = await params;
 
-  const [personnel, session, lookups, cvs] = await Promise.all([
+  const [personnel, { isDULeader }, lookups, cvs] = await Promise.all([
     getPersonnelById(id),
-    auth(),
+    getSessionWithRole(),
     getFormLookups(),
     getCVsByPersonnel(id),
   ]);
 
   if (!personnel) notFound();
-
-  const isDULeader =
-    (session?.user as { role?: string })?.role === "DU_LEADER";
 
   return (
     <div className="max-w-5xl">
@@ -137,7 +134,7 @@ export default async function PersonnelDetailPage({
             <div>
               <span className="text-gray-500">Vendor Rate</span>
               <p className="font-medium text-gray-900">
-                ${personnel.vendorRateActual.toLocaleString()}/mo
+                ${Math.round(personnel.vendorRateActual).toLocaleString()}/mo
               </p>
             </div>
           )}

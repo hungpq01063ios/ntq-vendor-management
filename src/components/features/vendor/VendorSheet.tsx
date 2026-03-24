@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { createVendor, updateVendor } from "@/actions/vendor.actions";
 import { useTranslations } from "@/i18n";
-import type { Vendor } from "@/types";
+import type { Vendor, TechStack, MarketConfig } from "@/types";
 
 // Form-specific schema: dates/numbers as strings for HTML inputs
 const VendorFormSchema = z.object({
@@ -17,11 +17,15 @@ const VendorFormSchema = z.object({
   contactName: z.string().min(1, "Contact name is required"),
   contactEmail: z.string().email("Invalid email"),
   contactPhone: z.string().optional(),
+  website: z.string().optional(),
   companySize: z.string().optional(),
   languageStrength: z.array(z.string()),
   status: z.enum(["ACTIVE", "INACTIVE", "ON_HOLD"]),
   startDate: z.string().optional(),
   notes: z.string().optional(),
+  performanceRating: z.string().optional(),    // CR-03: 1-5
+  responseSpeedRating: z.string().optional(),  // CR-03: 1-5
+  performanceNote: z.string().optional(),      // CR-03
 });
 
 type VendorFormValues = z.infer<typeof VendorFormSchema>;
@@ -32,6 +36,7 @@ function toFormValues(vendor: Vendor): VendorFormValues {
     contactName: vendor.contactName,
     contactEmail: vendor.contactEmail,
     contactPhone: vendor.contactPhone ?? "",
+    website: (vendor as { website?: string | null }).website ?? "",
     companySize: vendor.companySize?.toString() ?? "",
     languageStrength: vendor.languageStrength,
     status: vendor.status,
@@ -39,6 +44,9 @@ function toFormValues(vendor: Vendor): VendorFormValues {
       ? new Date(vendor.startDate).toISOString().split("T")[0]
       : "",
     notes: vendor.notes ?? "",
+    performanceRating: (vendor as { performanceRating?: number | null }).performanceRating?.toString() ?? "",
+    responseSpeedRating: (vendor as { responseSpeedRating?: number | null }).responseSpeedRating?.toString() ?? "",
+    performanceNote: (vendor as { performanceNote?: string | null }).performanceNote ?? "",
   };
 }
 
@@ -47,21 +55,25 @@ const emptyValues: VendorFormValues = {
   contactName: "",
   contactEmail: "",
   contactPhone: "",
+  website: "",
   companySize: "",
   languageStrength: [],
   status: "ACTIVE",
   startDate: "",
   notes: "",
+  performanceRating: "",
+  responseSpeedRating: "",
+  performanceNote: "",
 };
 
 interface VendorSheetProps {
   open: boolean;
   onClose: () => void;
   vendor?: Vendor;
+  techStacks: TechStack[];
 }
 
-export default function VendorSheet({ open, onClose, vendor }: VendorSheetProps) {
-  const [tagInput, setTagInput] = useState("");
+export default function VendorSheet({ open, onClose, vendor, techStacks }: VendorSheetProps) {
   const [submitting, setSubmitting] = useState(false);
   const isEdit = !!vendor;
   const router = useRouter();
@@ -86,23 +98,20 @@ export default function VendorSheet({ open, onClose, vendor }: VendorSheetProps)
   useEffect(() => {
     if (open) {
       reset(vendor ? toFormValues(vendor) : emptyValues);
-      setTagInput("");
     }
   }, [open, vendor, reset]);
 
-  function addTag() {
-    const tag = tagInput.trim();
-    if (tag && !languageStrength.includes(tag)) {
-      setValue("languageStrength", [...languageStrength, tag]);
+  function toggleTechStack(name: string) {
+    const current = languageStrength;
+    if (current.includes(name)) {
+      setValue("languageStrength", current.filter((t) => t !== name));
+    } else {
+      setValue("languageStrength", [...current, name]);
     }
-    setTagInput("");
   }
 
-  function removeTag(tag: string) {
-    setValue(
-      "languageStrength",
-      languageStrength.filter((t) => t !== tag)
-    );
+  function removeTechStack(name: string) {
+    setValue("languageStrength", languageStrength.filter((t) => t !== name));
   }
 
   async function onSubmit(data: VendorFormValues) {
@@ -112,15 +121,24 @@ export default function VendorSheet({ open, onClose, vendor }: VendorSheetProps)
       contactName: data.contactName,
       contactEmail: data.contactEmail,
       contactPhone: data.contactPhone || undefined,
+      website: data.website || undefined,
       companySize:
         data.companySize && data.companySize !== ""
           ? parseInt(data.companySize, 10)
           : undefined,
-      marketCode: "ENGLISH",
       languageStrength: data.languageStrength,
       status: data.status,
       startDate: data.startDate ? new Date(data.startDate) : undefined,
       notes: data.notes || undefined,
+      performanceRating:
+        data.performanceRating && data.performanceRating !== ""
+          ? parseInt(data.performanceRating, 10)
+          : undefined,
+      responseSpeedRating:
+        data.responseSpeedRating && data.responseSpeedRating !== ""
+          ? parseInt(data.responseSpeedRating, 10)
+          : undefined,
+      performanceNote: data.performanceNote || undefined,
     };
 
     const result = isEdit && vendor
@@ -214,6 +232,22 @@ export default function VendorSheet({ open, onClose, vendor }: VendorSheetProps)
             )}
           </div>
 
+          {/* Website */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Website
+            </label>
+            <input
+              {...register("website")}
+              type="url"
+              className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="https://vendor.com"
+            />
+            {errors.website && (
+              <p className="text-xs text-red-500 mt-1">{errors.website.message}</p>
+            )}
+          </div>
+
           {/* Contact Phone */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -267,40 +301,25 @@ export default function VendorSheet({ open, onClose, vendor }: VendorSheetProps)
             />
           </div>
 
-          {/* Language Strength (tags) */}
+          {/* Programming Language Strength — multi-select từ TechStack */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               {t.vendor.languageStrength}
             </label>
-            <div className="flex gap-2 mb-2">
-              <input
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addTag();
-                  }
-                }}
-                className="flex-1 border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder={t.vendor.languagePlaceholder}
-              />
-              <Button type="button" variant="outline" size="sm" onClick={addTag}>
-                {t.common.add}
-              </Button>
-            </div>
+            <p className="text-xs text-gray-500 mb-2">{t.vendor.languageHelperText}</p>
+            {/* Tags selected */}
             {languageStrength.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {languageStrength.map((tag) => (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {languageStrength.map((name) => (
                   <span
-                    key={tag}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800"
+                    key={name}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800 font-medium"
                   >
-                    {tag}
+                    {name}
                     <button
                       type="button"
-                      onClick={() => removeTag(tag)}
-                      className="hover:text-blue-600"
+                      onClick={() => removeTechStack(name)}
+                      className="hover:text-blue-600 leading-none"
                     >
                       ✕
                     </button>
@@ -308,6 +327,71 @@ export default function VendorSheet({ open, onClose, vendor }: VendorSheetProps)
                 ))}
               </div>
             )}
+            {/* Dropdown để chọn thêm */}
+            <select
+              className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value=""
+              onChange={(e) => {
+                if (e.target.value) toggleTechStack(e.target.value);
+              }}
+            >
+              <option value="">{t.vendor.languageSelectPlaceholder}</option>
+              {techStacks
+                .filter((ts) => !languageStrength.includes(ts.name))
+                .map((ts) => (
+                  <option key={ts.id} value={ts.name}>{ts.name}</option>
+                ))}
+            </select>
+          </div>
+
+          {/* Performance Rating - CR-03 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t.vendor.performanceRating}
+            </label>
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label className="text-xs text-gray-500 mb-1 block">{t.vendor.qualityLabel}</label>
+                <select
+                  {...register("performanceRating")}
+                  className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">{t.vendor.notRated}</option>
+                  <option value="1">★ (1)</option>
+                  <option value="2">★★ (2)</option>
+                  <option value="3">★★★ (3)</option>
+                  <option value="4">★★★★ (4)</option>
+                  <option value="5">★★★★★ (5)</option>
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="text-xs text-gray-500 mb-1 block">{t.vendor.responseLabel}</label>
+                <select
+                  {...register("responseSpeedRating")}
+                  className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">{t.vendor.notRated}</option>
+                  <option value="1">★ (1)</option>
+                  <option value="2">★★ (2)</option>
+                  <option value="3">★★★ (3)</option>
+                  <option value="4">★★★★ (4)</option>
+                  <option value="5">★★★★★ (5)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Performance Note - CR-03 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t.vendor.performanceNote}
+            </label>
+            <textarea
+              {...register("performanceNote")}
+              rows={2}
+              className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              placeholder="VD: Phản hồi nhanh, chất lượng nhân sự tốt..."
+            />
           </div>
 
           {/* Notes */}

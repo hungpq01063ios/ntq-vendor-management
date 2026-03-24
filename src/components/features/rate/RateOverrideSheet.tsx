@@ -18,14 +18,14 @@ interface FormValues {
 interface OverrideData {
   id: string;
   jobTypeId: string;
-  techStackId: string;
+  techStackId: string; // stored as "" when not set
   levelId: string;
-  domainId: string;
+  domainId: string;    // stored as "" when not set
   customBillingRate: number;
   jobType: JobType;
-  techStack: TechStack;
+  techStack: TechStack | null;
   level: Level;
-  domain: Domain;
+  domain: Domain | null;
 }
 
 interface Props {
@@ -169,20 +169,18 @@ export default function RateOverrideSheet({
           {/* Tech Stack */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Tech Stack <span className="text-red-500">*</span>
+              Tech Stack
+              <span className="text-gray-400 text-xs font-normal ml-1">(optional)</span>
             </label>
             <select
-              {...register("techStackId", { required: "Required" })}
+              {...register("techStackId")}
               className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">Select tech stack</option>
+              <option value="">— Any / Not applicable —</option>
               {techStacks.map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
             </select>
-            {errors.techStackId && (
-              <p className="text-xs text-red-500 mt-1">{errors.techStackId.message}</p>
-            )}
           </div>
 
           {/* Level */}
@@ -207,20 +205,18 @@ export default function RateOverrideSheet({
           {/* Domain */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Domain <span className="text-red-500">*</span>
+              Domain
+              <span className="text-gray-400 text-xs font-normal ml-1">(optional)</span>
             </label>
             <select
-              {...register("domainId", { required: "Required" })}
+              {...register("domainId")}
               className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">Select domain</option>
+              <option value="">— Any / Not applicable —</option>
               {domains.map((d) => (
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
             </select>
-            {errors.domainId && (
-              <p className="text-xs text-red-500 mt-1">{errors.domainId.message}</p>
-            )}
           </div>
 
           {/* Norm Rate Reference */}

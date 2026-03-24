@@ -4,8 +4,10 @@ import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { deleteRateNorm } from "@/actions/rate.actions";
+import { deleteRateNorm, cloneRatesFromMarket } from "@/actions/rate.actions";
+import { importRateNorms } from "@/actions/import.actions";
 import RateNormSheet from "./RateNormSheet";
+import ImportDialog from "@/components/features/import/ImportDialog";
 import type { RateNormWithRelations, JobType, TechStack, Level, Domain, MarketConfig } from "@/types";
 
 function fmt(n: number) {
@@ -35,13 +37,14 @@ export default function RateMatrixGrid({
   domains,
   markets,
 }: Props) {
-  const [marketTab, setMarketTab] = useState<string>("ENGLISH");
+  const [marketTab, setMarketTab] = useState<string>(markets[0]?.code ?? "ENGLISH");
   const [domainFilter, setDomainFilter] = useState("");
   const [techStackFilter, setTechStackFilter] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingNorm, setEditingNorm] = useState<RateNormWithRelations | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RateNormWithRelations | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [cloning, setCloning] = useState(false);
 
   const filtered = useMemo(() => {
     return rateNorms.filter((n) => {
@@ -66,6 +69,18 @@ export default function RateMatrixGrid({
     }
   }
 
+  async function handleCloneFromEnglish() {
+    if (marketTab === "ENGLISH") return;
+    setCloning(true);
+    const res = await cloneRatesFromMarket("ENGLISH", marketTab, false);
+    setCloning(false);
+    if (res.success) {
+      toast.success(`Clone thành công: ${res.data.cloned} records | Bỏ qua: ${res.data.skipped} đã tồn tại`);
+    } else {
+      toast.error(res.error ?? "Clone thất bại");
+    }
+  }
+
   return (
     <>
       {/* Market tabs */}
@@ -84,6 +99,29 @@ export default function RateMatrixGrid({
           </button>
         ))}
       </div>
+
+      {/* CR-13: Market context banner */}
+      {(() => {
+        const currentMarket = markets.find((m) => m.code === marketTab);
+        return (
+          <div className="mb-4 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+            <div>
+              <span className="text-sm text-blue-800 font-medium">
+                📊 Đang xem định mức rate cho thị trường:{" "}
+                <strong>{currentMarket?.name ?? marketTab}</strong>
+              </span>
+              {currentMarket && (
+                <span className="ml-3 text-xs text-blue-600">
+                  Market Factor: {(currentMarket.marketRateFactorPct * 100).toFixed(0)}%
+                </span>
+              )}
+            </div>
+            {filtered.length > 0 && (
+              <span className="text-xs text-blue-500">{filtered.length} norms</span>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -112,7 +150,33 @@ export default function RateMatrixGrid({
           ))}
         </select>
         {isDULeader && (
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-2">
+            {/* Clone from English — chỉ hiện khi đang xem tab khác ENGLISH */}
+            {marketTab !== "ENGLISH" && (
+              <Button
+                variant="outline"
+                onClick={handleCloneFromEnglish}
+                disabled={cloning}
+                className="gap-1.5 text-orange-600 border-orange-300 hover:bg-orange-50"
+              >
+                {cloning ? (
+                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                )}
+                {cloning ? "Cloning..." : "Clone từ English"}
+              </Button>
+            )}
+            <ImportDialog
+              label="Import Excel"
+              templateUrl={`/api/import/rate-template?market=${marketTab}`}
+              importAction={importRateNorms}
+            />
             <Button
               onClick={() => {
                 setEditingNorm(null);

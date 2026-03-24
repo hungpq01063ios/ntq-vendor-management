@@ -8,8 +8,11 @@ import {
   updateInterviewStatus,
   softDeletePersonnel,
 } from "@/actions/personnel.actions";
+import { importPersonnel } from "@/actions/import.actions";
 import { useTranslations } from "@/i18n";
+import { useTableSort, SortableHeader } from "@/hooks/useTableSort";
 import PersonnelSheet from "./PersonnelSheet";
+import ImportDialog from "@/components/features/import/ImportDialog";
 import type {
   Personnel,
   Vendor,
@@ -27,7 +30,16 @@ type PersonnelRow = Personnel & {
   techStack: TechStack | null;
   level: Level;
   domain: Domain | null;
+  assignments: { id: string; project: { id: string; name: string } }[];
 };
+
+// CR-05: Format enum to Title Case
+function titleCase(str: string) {
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+}
+function formatEnglishLevel(level: string) {
+  return level.split("_").map(titleCase).join(" ");
+}
 
 const INTERVIEW_COLORS: Record<string, string> = {
   NEW: "bg-gray-100 text-gray-600",
@@ -168,6 +180,19 @@ export default function PersonnelTable({
     });
   }, [personnel, search, statusFilter, interviewFilter, jobTypeFilter, techStackFilter]);
 
+  // CR-28: Table sorting
+  const sortableData = useMemo(() =>
+    filtered.map((p) => ({
+      ...p,
+      _vendorName: p.vendor.name,
+      _jobTypeName: p.jobType.name,
+      _levelName: p.level.name,
+      _vendorRate: p.vendorRateActual ?? -1,
+    })),
+    [filtered]
+  );
+  const { sorted, sortKey, sortDir, toggleSort } = useTableSort(sortableData, "fullName", "asc");
+
   function openEdit(p: Personnel) {
     setSelectedPersonnel(p);
     setSheetOpen(true);
@@ -243,7 +268,12 @@ export default function PersonnelTable({
             </option>
           ))}
         </select>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <ImportDialog
+            label="Import Excel"
+            templateUrl="/api/import/personnel-template"
+            importAction={importPersonnel}
+          />
           <Button
             onClick={() => {
               setSelectedPersonnel(null);
@@ -284,34 +314,28 @@ export default function PersonnelTable({
         <table className="w-full text-sm min-w-[900px]">
           <thead className="bg-gray-50 border-b">
             <tr>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">
-                {t.personnel.fullName}
-              </th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">
-                {t.personnel.vendor}
-              </th>
+              <SortableHeader label={t.personnel.fullName} sortKey="fullName" currentSortKey={sortKey} currentSortDir={sortDir} onToggle={toggleSort} />
+              <SortableHeader label={t.personnel.vendor} sortKey="_vendorName" currentSortKey={sortKey} currentSortDir={sortDir} onToggle={toggleSort} />
               <th className="text-left px-4 py-3 font-medium text-gray-600">
                 {t.vendor.jobType}
               </th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">
                 {t.vendor.techStack}
               </th>
+              <SortableHeader label={t.vendor.level} sortKey="_levelName" currentSortKey={sortKey} currentSortDir={sortDir} onToggle={toggleSort} />
               <th className="text-left px-4 py-3 font-medium text-gray-600">
-                {t.vendor.level}
-              </th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">
-                English
+                {t.personnel.englishLevel}
               </th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">
                 {t.vendor.interview}
               </th>
+              <SortableHeader label={t.common.status} sortKey="status" currentSortKey={sortKey} currentSortDir={sortDir} onToggle={toggleSort} />
+              {/* CR-07: Projects column */}
               <th className="text-left px-4 py-3 font-medium text-gray-600">
-                {t.common.status}
+                {t.personnel.projectsColumn}
               </th>
               {isDULeader && (
-                <th className="text-left px-4 py-3 font-medium text-gray-600">
-                  {t.personnel.vendorRate}
-                </th>
+                <SortableHeader label={t.personnel.vendorRate} sortKey="_vendorRate" currentSortKey={sortKey} currentSortDir={sortDir} onToggle={toggleSort} />
               )}
               <th className="text-left px-4 py-3 font-medium text-gray-600">
                 {t.common.actions}
@@ -319,17 +343,17 @@ export default function PersonnelTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {filtered.length === 0 && (
+            {sorted.length === 0 && (
               <tr>
                 <td
-                  colSpan={isDULeader ? 10 : 9}
+                  colSpan={isDULeader ? 11 : 10}
                   className="px-4 py-8 text-center text-gray-400"
                 >
                   {t.personnel.noPersonnel}
                 </td>
               </tr>
             )}
-            {filtered.map((p) => (
+            {sorted.map((p) => (
               <tr key={p.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium text-gray-900">
                   <div className="flex items-center gap-1">
@@ -354,7 +378,7 @@ export default function PersonnelTable({
                   {p.level.name}
                 </td>
                 <td className="px-4 py-3 text-gray-600 text-xs">
-                  {p.englishLevel}
+                  {formatEnglishLevel(p.englishLevel)}
                 </td>
                 <td className="px-4 py-3">
                   <span
@@ -370,10 +394,24 @@ export default function PersonnelTable({
                     {PERSONNEL_STATUS_LABELS[p.status] ?? p.status}
                   </span>
                 </td>
+                {/* CR-07: Active projects */}
+                <td className="px-4 py-3 text-xs text-gray-600">
+                  {p.assignments.length === 0 ? (
+                    <span className="text-gray-300">—</span>
+                  ) : (
+                    <div className="flex flex-col gap-0.5">
+                      {p.assignments.map((a) => (
+                        <span key={a.id} className="truncate max-w-[120px]" title={a.project.name}>
+                          {a.project.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </td>
                 {isDULeader && (
                   <td className="px-4 py-3 text-gray-600 text-xs">
                     {p.vendorRateActual != null
-                      ? `$${p.vendorRateActual.toLocaleString()}`
+                      ? `$${Math.round(p.vendorRateActual).toLocaleString()}`
                       : "—"}
                   </td>
                 )}
@@ -434,10 +472,10 @@ export default function PersonnelTable({
           <div className="fixed inset-0 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                {t.vendor.deactivateTitle.replace("vendor", t.personnel.title.toLowerCase())}
+                {t.personnel.deactivateTitle}
               </h3>
               <p className="text-sm text-gray-600 mb-6">
-                <strong>{deleteTarget.fullName}</strong> {t.vendor.deactivateBody}
+                <strong>{deleteTarget.fullName}</strong> {t.personnel.deactivateBody}
               </p>
               <div className="flex justify-end gap-3">
                 <Button

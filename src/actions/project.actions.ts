@@ -38,6 +38,8 @@ export async function getProjectById(id: string) {
   return db.project.findUnique({
     where: { id },
     include: {
+      domain: true,      // CR-21
+      techStack: true,   // CR-21
       assignments: {
         include: {
           personnel: {

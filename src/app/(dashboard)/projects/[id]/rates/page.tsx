@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { auth } from "@/lib/auth";
+import { getSessionWithRole } from "@/lib/auth-helpers";
 import { getProjectById } from "@/actions/project.actions";
 import { getRateNorms, getProjectRateOverrides } from "@/actions/rate.actions";
 import { getFormLookups } from "@/actions/lookup.actions";
@@ -13,9 +13,7 @@ export default async function ProjectRatesPage({
 }) {
   const { id } = await params;
 
-  const session = await auth();
-  const isDULeader =
-    (session?.user as { role?: string })?.role === "DU_LEADER";
+  const { isDULeader } = await getSessionWithRole();
 
   if (!isDULeader) redirect(`/projects/${id}`);
 

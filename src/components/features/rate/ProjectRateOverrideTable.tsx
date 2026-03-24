@@ -17,9 +17,9 @@ interface Override {
   customBillingRate: number;
   setAt: Date;
   jobType: JobType;
-  techStack: TechStack;
+  techStack: TechStack | null; // null when techStackId is ""
   level: Level;
-  domain: Domain;
+  domain: Domain | null;       // null when domainId is ""
 }
 
 interface Props {
@@ -130,9 +130,13 @@ export default function ProjectRateOverrideTable({
               return (
                 <tr key={o.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-900">{o.jobType.name}</td>
-                  <td className="px-4 py-3 text-gray-600 text-xs">{o.techStack.name}</td>
+                  <td className="px-4 py-3 text-gray-600 text-xs">
+                    {o.techStack?.name ?? <span className="text-gray-400">Any</span>}
+                  </td>
                   <td className="px-4 py-3 text-gray-600 text-xs">{o.level.name}</td>
-                  <td className="px-4 py-3 text-gray-600 text-xs">{o.domain.name}</td>
+                  <td className="px-4 py-3 text-gray-600 text-xs">
+                    {o.domain?.name ?? <span className="text-gray-400">Any</span>}
+                  </td>
                   <td className="px-4 py-3 text-right text-gray-500 text-xs">
                     {normRate !== null ? fmt(normRate) : "—"}
                   </td>
@@ -213,7 +217,7 @@ export default function ProjectRateOverrideTable({
               </h3>
               <p className="text-sm text-gray-600 mb-6">
                 <strong>
-                  {deleteTarget.jobType.name} / {deleteTarget.techStack.name} /{" "}
+                  {deleteTarget.jobType.name}{deleteTarget.techStack ? ` / ${deleteTarget.techStack.name}` : ""} /{" "}
                   {deleteTarget.level.name}
                 </strong>{" "}
                 override will be removed. Assignments will fall back to the rate norm.

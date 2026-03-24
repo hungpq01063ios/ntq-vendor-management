@@ -49,10 +49,26 @@ On-demand (chỉ khi task cần):
 | Bug fix / refactor | `coding-quality §4 TypeScript Rules + §6 Checklist` |
 | Viết Server Action mới | `references/patterns.md §Server Action Template` |
 | Dashboard widget | `references/patterns.md §Dashboard Aggregation` |
+| CR / Feature Request | `/impact-assessment` workflow **BẮT BUỘC** trước khi code |
 
 **Token tip:** Tham chiếu section cụ thể (§N) thay vì đọc cả file.
 
 ---
+
+## Step 1.5 — Impact Assessment (BẮT BUỘC cho DB/Schema/Feature changes)
+
+> ⚠️ **TỰ ĐỘNG CHẠY** khi task liên quan đến: thêm/xóa field, thay đổi schema,
+> implement CR/feature, hoặc fix bug data flow.
+
+```
+1. Đọc docs/DEPENDENCY_MAP.md → xác định affected files
+2. Check Cross-Cutting Dependencies → follow chain đầy đủ
+3. Targeted grep KEYWORD trong affected files ONLY
+4. Tạo impact summary table → confirm nếu > 5 files hoặc High risk
+```
+
+Xem chi tiết: `/impact-assessment` workflow.
+
 
 ## Step 2 — Check Before Creating
 

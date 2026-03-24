@@ -32,6 +32,134 @@ export async function getRateNorms(filter?: {
   });
 }
 
+// ─── Clone rate từ một market sang market khác ────────────────────────────────
+
+export async function cloneRatesFromMarket(
+  sourceMarketCode: string,
+  targetMarketCode: string,
+  overwrite = false
+): Promise<ActionResult<{ cloned: number; skipped: number }>> {
+  try {
+    const session = await requireRole("DU_LEADER");
+
+    const sourceRates = await db.rateNorm.findMany({
+      where: { marketCode: sourceMarketCode },
+    });
+
+    if (sourceRates.length === 0) {
+      return { success: false, error: `Không có dữ liệu rate cho thị trường ${sourceMarketCode}` };
+    }
+
+    let cloned = 0;
+    let skipped = 0;
+
+    for (const rate of sourceRates) {
+      const key = {
+        jobTypeId: rate.jobTypeId,
+        techStackId: rate.techStackId,
+        levelId: rate.levelId,
+        domainId: rate.domainId,
+        marketCode: targetMarketCode,
+      };
+
+      if (overwrite) {
+        await db.rateNorm.upsert({
+          where: { jobTypeId_techStackId_levelId_domainId_marketCode: key },
+          update: { rateMin: rate.rateMin, rateNorm: rate.rateNorm, rateMax: rate.rateMax },
+          create: { ...key, rateMin: rate.rateMin, rateNorm: rate.rateNorm, rateMax: rate.rateMax, createdById: session.user.id },
+        });
+        cloned++;
+      } else {
+        const existing = await db.rateNorm.findUnique({
+          where: { jobTypeId_techStackId_levelId_domainId_marketCode: key },
+        });
+        if (existing) {
+          skipped++;
+        } else {
+          await db.rateNorm.create({
+            data: { ...key, rateMin: rate.rateMin, rateNorm: rate.rateNorm, rateMax: rate.rateMax, createdById: session.user.id },
+          });
+          cloned++;
+        }
+      }
+    }
+
+    revalidatePath("/rates");
+    return { success: true, data: { cloned, skipped } };
+  } catch (error) {
+    return { success: false, error: getErrorMessage(error) };
+  }
+}
+
+export async function createRateNorm(
+  data: z.infer<typeof RateNormSchema>
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    const session = await requireRole("DU_LEADER");
+    const validated = RateNormSchema.parse(data);
+    const { effectiveDate, ...rest } = validated;
+
+    // Check for existing record with same natural key
+    const existing = await db.rateNorm.findUnique({
+      where: {
+        jobTypeId_techStackId_levelId_domainId_marketCode: {
+          jobTypeId: rest.jobTypeId,
+          techStackId: rest.techStackId,
+          levelId: rest.levelId,
+          domainId: rest.domainId,
+          marketCode: rest.marketCode,
+        },
+      },
+    });
+
+    if (existing) {
+      return {
+        success: false,
+        error: "Định mức rate cho tổ hợp này đã tồn tại. Hãy chỉnh sửa định mức hiện có thay vì tạo mới.",
+      };
+    }
+
+    const norm = await db.rateNorm.create({
+      data: {
+        ...rest,
+        effectiveDate: effectiveDate ?? new Date(),
+        createdById: session.user.id,
+      },
+    });
+
+    revalidatePath("/rates");
+    return { success: true, data: { id: norm.id } };
+  } catch (error) {
+    return { success: false, error: getErrorMessage(error) };
+  }
+}
+
+export async function updateRateNorm(
+  id: string,
+  data: z.infer<typeof RateNormSchema>
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    const session = await requireRole("DU_LEADER");
+    const validated = RateNormSchema.parse(data);
+    const { effectiveDate, ...rest } = validated;
+
+    const norm = await db.rateNorm.update({
+      where: { id },
+      data: {
+        ...rest,
+        effectiveDate: effectiveDate ?? new Date(),
+        createdById: session.user.id,
+      },
+    });
+
+    revalidatePath("/rates");
+    return { success: true, data: { id: norm.id } };
+  } catch (error) {
+    return { success: false, error: getErrorMessage(error) };
+  }
+}
+
+// Keep for internal use (cloneRatesFromMarket uses upsert intentionally)
 export async function upsertRateNorm(
   data: z.infer<typeof RateNormSchema>
 ): Promise<ActionResult<{ id: string }>> {
@@ -171,18 +299,47 @@ export async function getRateNormForPersonnel(
   personnelId: string,
   projectId: string
 ) {
-  const [personnel, configs, markets] = await Promise.all([
+  const [personnel, project, configs, markets] = await Promise.all([
     db.personnel.findUnique({
       where: { id: personnelId },
       include: { vendor: true },
     }),
+    db.project.findUnique({ where: { id: projectId } }),
     db.systemConfig.findMany(),
     db.marketConfig.findMany({ where: { isActive: true } }),
   ]);
 
-  if (!personnel) return null;
+  if (!personnel || !project) return null;
 
-  const [override, rateNorm] = await Promise.all([
+  // Rule: norm market = project.marketCode
+  const marketCode = project.marketCode;
+
+  // Fetch fallback IDs for norm lookup (Phương án 3)
+  const [genericStackRow, generalDomainRow] = await Promise.all([
+    db.techStack.findFirst({ where: { name: "Generic" }, select: { id: true } }),
+    db.domain.findFirst({ where: { name: "General" }, select: { id: true } }),
+  ]);
+  const GENERIC_STACK_ID = genericStackRow?.id;
+  const GENERAL_DOMAIN_ID = generalDomainRow?.id;
+
+  // Null-map: null techStack → Generic, null domain → General
+  const ts = personnel.techStackId ?? GENERIC_STACK_ID;
+  const dom = personnel.domainId ?? GENERAL_DOMAIN_ID;
+
+  // Build candidate conditions (exact + domain fallback + generic fallback)
+  type NormCond = { jobTypeId: string; techStackId: string; levelId: string; domainId: string; marketCode: string };
+  const candidates: NormCond[] = [];
+  if (ts && dom) {
+    candidates.push({ jobTypeId: personnel.jobTypeId, techStackId: ts, levelId: personnel.levelId, domainId: dom, marketCode });
+    if (dom !== GENERAL_DOMAIN_ID && GENERAL_DOMAIN_ID) {
+      candidates.push({ jobTypeId: personnel.jobTypeId, techStackId: ts, levelId: personnel.levelId, domainId: GENERAL_DOMAIN_ID, marketCode });
+    }
+    if (ts !== GENERIC_STACK_ID && GENERIC_STACK_ID && GENERAL_DOMAIN_ID) {
+      candidates.push({ jobTypeId: personnel.jobTypeId, techStackId: GENERIC_STACK_ID, levelId: personnel.levelId, domainId: GENERAL_DOMAIN_ID, marketCode });
+    }
+  }
+
+  const [override, candidateNorms] = await Promise.all([
     db.projectRateOverride.findFirst({
       where: {
         projectId,
@@ -192,16 +349,20 @@ export async function getRateNormForPersonnel(
         domainId: personnel.domainId ?? undefined,
       },
     }),
-    db.rateNorm.findFirst({
-      where: {
-        jobTypeId: personnel.jobTypeId,
-        techStackId: personnel.techStackId ?? undefined,
-        levelId: personnel.levelId,
-        domainId: personnel.domainId ?? undefined,
-        marketCode: personnel.vendor.marketCode,
-      },
-    }),
+    candidates.length > 0
+      ? db.rateNorm.findMany({ where: { OR: candidates } })
+      : Promise.resolve([]),
   ]);
+
+  // Priority resolution: exact → General domain → Generic+General
+  const normKey = (techStackId: string, domainId: string) =>
+    `${personnel.jobTypeId}|${techStackId}|${personnel.levelId}|${domainId}|${marketCode}`;
+  const normMap = new Map(candidateNorms.map((n) => [`${n.jobTypeId}|${n.techStackId}|${n.levelId}|${n.domainId}|${n.marketCode}`, n]));
+
+  const rateNorm =
+    (ts && dom ? normMap.get(normKey(ts, dom)) : undefined) ??
+    (ts && GENERAL_DOMAIN_ID ? normMap.get(normKey(ts, GENERAL_DOMAIN_ID)) : undefined) ??
+    (GENERIC_STACK_ID && GENERAL_DOMAIN_ID ? normMap.get(normKey(GENERIC_STACK_ID, GENERAL_DOMAIN_ID)) : undefined);
 
   const configMap = Object.fromEntries(
     configs.map((c: { key: string; value: string }) => [c.key, parseFloat(c.value)])
@@ -227,7 +388,7 @@ export async function getRateNormForPersonnel(
 
   const vendorTargetRate =
     billingRate !== null
-      ? calculateVendorTargetRate(billingRate, rateConfig, personnel.vendor.marketCode)
+      ? calculateVendorTargetRate(billingRate, rateConfig, marketCode)
       : null;
 
   return {

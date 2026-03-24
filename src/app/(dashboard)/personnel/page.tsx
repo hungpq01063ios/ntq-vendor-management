@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { auth } from "@/lib/auth";
+import { getSessionWithRole } from "@/lib/auth-helpers";
 import { getPersonnel } from "@/actions/personnel.actions";
 import { getFormLookups } from "@/actions/lookup.actions";
 import PersonnelTable from "@/components/features/personnel/PersonnelTable";
@@ -13,14 +13,11 @@ export const metadata: Metadata = {
 export default async function PersonnelPage() {
   const cookieStore = await cookies();
   const t = getTranslations(cookieStore.get("locale")?.value);
-  const [session, personnel, lookups] = await Promise.all([
-    auth(),
+  const [{ isDULeader }, personnel, lookups] = await Promise.all([
+    getSessionWithRole(),
     getPersonnel(),
     getFormLookups(),
   ]);
-
-  const isDULeader =
-    (session?.user as { role?: string })?.role === "DU_LEADER";
 
   return (
     <div>

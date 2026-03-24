@@ -8,7 +8,7 @@
 > - Rate/Config/Alert/Calculator → `PRD-Module3-RateEngine.md`
 > - RBAC/Auth/Tech → `PRD-Common.md`
 
-**Version**: 1.5 · **Date**: 2026-03-19 · **Status**: Draft
+**Version**: 1.6 · **Date**: 2026-03-21 · **Status**: Draft
 
 | Version | Ngày | Thay đổi |
 |---------|------|---------|
@@ -18,6 +18,7 @@
 | v1.3 | 2026-03-18 | Vendor không phân theo Market. Thêm Rate Calculator 2 chiều. Xóa market khỏi Vendor entity. |
 | v1.4 | 2026-03-18 | **Personnel: Tech Stack và Domain → optional**. BA/PM/Designer có thể bỏ trống. DB schema đã migrate (nullable). Rate Lookup bỏ qua filter khi null. |
 | v1.5 | 2026-03-19 | **Personnel CV Management** (nhiều version, add lúc create). **Project P&L card** trên detail page. **Assignment Edit/Delete**. Rate columns trong Assignment table. |
+| v1.6 | 2026-03-21 | **CR Phase**: Vendor website+ratings+lang filter. Personnel multi-techstack+CV required+inline interview. Project domain+techstack. Pipeline project filter. Rate market banner. RateOverride optional fields. |
 
 ---
 
@@ -100,4 +101,4 @@ Xây dựng hệ thống cho phép DU Leader và Vendor PIC **quản lý vendor,
 
 ---
 
-*PRD v1.5 — 2026-03-19 | Owner: Phạm Quốc Hưng | DU8 — NTQ Solution*
+*PRD v1.6 — 2026-03-21 | Owner: Phạm Quốc Hưng | DU8 — NTQ Solution*

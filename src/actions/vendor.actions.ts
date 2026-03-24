@@ -18,7 +18,6 @@ export async function getVendors(filter?: {
 }) {
   return db.vendor.findMany({
     where: {
-      ...(filter?.market && { marketCode: filter.market }),
       ...(filter?.status && { status: filter.status as VendorStatus }),
       ...(filter?.search && {
         name: { contains: filter.search, mode: "insensitive" },

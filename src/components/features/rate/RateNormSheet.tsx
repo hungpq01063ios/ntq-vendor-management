@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { upsertRateNorm } from "@/actions/rate.actions";
+import { createRateNorm, updateRateNorm } from "@/actions/rate.actions";
+import { useTranslations } from "@/i18n";
 import type { RateNormWithRelations, JobType, TechStack, Level, Domain, MarketConfig } from "@/types";
 
 interface FormValues {
@@ -44,6 +45,7 @@ export default function RateNormSheet({
 }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const isEdit = !!rateNorm;
+  const { t } = useTranslations();
 
   const {
     register,
@@ -113,19 +115,39 @@ export default function RateNormSheet({
 
     setSubmitting(true);
     try {
-      await upsertRateNorm({
-        jobTypeId: values.jobTypeId,
-        techStackId: values.techStackId,
-        levelId: values.levelId,
-        domainId: values.domainId,
-        marketCode: values.marketCode,
-        rateMin,
-        rateNorm: rateNormVal,
-        rateMax,
-        effectiveDate: values.effectiveDate ? new Date(values.effectiveDate) : undefined,
-      });
-      toast.success(isEdit ? "Rate norm updated" : "Rate norm created");
-      onClose();
+      let result;
+      if (isEdit && rateNorm) {
+        result = await updateRateNorm(rateNorm.id, {
+          jobTypeId: values.jobTypeId,
+          techStackId: values.techStackId,
+          levelId: values.levelId,
+          domainId: values.domainId,
+          marketCode: values.marketCode,
+          rateMin,
+          rateNorm: rateNormVal,
+          rateMax,
+          effectiveDate: values.effectiveDate ? new Date(values.effectiveDate) : undefined,
+        });
+      } else {
+        result = await createRateNorm({
+          jobTypeId: values.jobTypeId,
+          techStackId: values.techStackId,
+          levelId: values.levelId,
+          domainId: values.domainId,
+          marketCode: values.marketCode,
+          rateMin,
+          rateNorm: rateNormVal,
+          rateMax,
+          effectiveDate: values.effectiveDate ? new Date(values.effectiveDate) : undefined,
+        });
+      }
+
+      if (result.success) {
+        toast.success(isEdit ? t.rate.rateNormUpdated : t.rate.rateNormCreated);
+        onClose();
+      } else {
+        toast.error(result.error);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save");
     } finally {
@@ -142,7 +164,7 @@ export default function RateNormSheet({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <h2 className="text-lg font-semibold text-gray-900">
-            {isEdit ? "Edit Rate Norm" : "Add Rate Norm"}
+            {isEdit ? t.rate.editRateNorm : t.rate.addRateNorm}
           </h2>
           <button
             onClick={onClose}
@@ -157,13 +179,13 @@ export default function RateNormSheet({
           {/* Job Type */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Job Type <span className="text-red-500">*</span>
+              {t.rate.jobType} <span className="text-red-500">*</span>
             </label>
             <select
               {...register("jobTypeId", { required: "Required" })}
               className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">Select job type</option>
+              <option value="">{t.rate.selectJobType}</option>
               {jobTypes.map((j) => (
                 <option key={j.id} value={j.id}>{j.name}</option>
               ))}
@@ -176,13 +198,13 @@ export default function RateNormSheet({
           {/* Tech Stack */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Tech Stack <span className="text-red-500">*</span>
+              {t.rate.techStack} <span className="text-red-500">*</span>
             </label>
             <select
               {...register("techStackId", { required: "Required" })}
               className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">Select tech stack</option>
+              <option value="">{t.rate.selectTechStack}</option>
               {techStacks.map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
@@ -195,13 +217,13 @@ export default function RateNormSheet({
           {/* Level */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Level <span className="text-red-500">*</span>
+              {t.rate.level} <span className="text-red-500">*</span>
             </label>
             <select
               {...register("levelId", { required: "Required" })}
               className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">Select level</option>
+              <option value="">{t.rate.selectLevel}</option>
               {levels.map((l) => (
                 <option key={l.id} value={l.id}>{l.name}</option>
               ))}
@@ -214,13 +236,13 @@ export default function RateNormSheet({
           {/* Domain */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Domain <span className="text-red-500">*</span>
+              {t.rate.domain} <span className="text-red-500">*</span>
             </label>
             <select
               {...register("domainId", { required: "Required" })}
               className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">Select domain</option>
+              <option value="">{t.rate.selectDomain}</option>
               {domains.map((d) => (
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
@@ -233,7 +255,7 @@ export default function RateNormSheet({
           {/* Market */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Market <span className="text-red-500">*</span>
+              {t.rate.market} <span className="text-red-500">*</span>
             </label>
             <select
               {...register("marketCode", { required: "Required" })}
@@ -249,7 +271,7 @@ export default function RateNormSheet({
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Min (USD) <span className="text-red-500">*</span>
+                {t.rate.rateMin} <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -281,7 +303,7 @@ export default function RateNormSheet({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Max (USD) <span className="text-red-500">*</span>
+                {t.rate.rateMax} <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -300,7 +322,7 @@ export default function RateNormSheet({
           {/* Effective Date */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Effective Date
+              {t.rate.effectiveDate}
             </label>
             <input
               type="date"
@@ -313,10 +335,10 @@ export default function RateNormSheet({
         {/* Footer */}
         <div className="flex justify-end gap-3 px-6 py-4 border-t">
           <Button variant="outline" onClick={onClose} disabled={submitting}>
-            Cancel
+            {t.common.cancel}
           </Button>
           <Button onClick={handleSubmit(onSubmit)} disabled={submitting}>
-            {submitting ? "Saving..." : isEdit ? "Update" : "Create"}
+            {submitting ? t.common.saving : isEdit ? t.common.save : t.common.create}
           </Button>
         </div>
       </div>

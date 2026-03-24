@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { createAssignment, updateAssignment } from "@/actions/assignment.actions";
 import { getRateNormForPersonnel } from "@/actions/rate.actions";
 import RateSuggestionCard from "@/components/features/rate/RateSuggestionCard";
+import { useTranslations } from "@/i18n";
 import type { PersonnelWithRelations, Assignment } from "@/types";
 
 const AssignmentFormSchema = z.object({
@@ -70,6 +71,7 @@ export default function AssignmentSheet({
   const [rateData, setRateData] = useState<RateData>(null);
   const [rateLoading, setRateLoading] = useState(false);
   const router = useRouter();
+  const { t } = useTranslations();
 
   const {
     register,
@@ -145,7 +147,7 @@ export default function AssignmentSheet({
       toast.error(result.error);
       return;
     }
-    toast.success(isEdit ? "Assignment updated" : "Assignment created");
+    toast.success(isEdit ? t.project.assignmentUpdated : t.project.createdSuccess);
     router.refresh();
     onClose();
   }
@@ -162,7 +164,7 @@ export default function AssignmentSheet({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <h2 className="text-lg font-semibold text-gray-900">
-            {isEdit ? "Edit Assignment" : "Add Assignment"}
+            {isEdit ? t.project.editAssignment : t.project.addAssignment}
           </h2>
           <button
             onClick={onClose}
@@ -178,7 +180,7 @@ export default function AssignmentSheet({
           {isEdit ? (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Personnel
+                {t.personnel.vendor}
               </label>
               <div className="w-full border rounded-md px-3 py-2 text-sm bg-gray-50 text-gray-700">
                 {assignment!.personnel.fullName} — {assignment!.personnel.jobType.name} / {assignment!.personnel.level.name}
@@ -188,7 +190,7 @@ export default function AssignmentSheet({
           ) : (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Personnel <span className="text-red-500">*</span>
+                {t.personnel.vendor} <span className="text-red-500">*</span>
               </label>
               <select
                 {...personnelRest}
@@ -198,13 +200,18 @@ export default function AssignmentSheet({
                 }}
                 className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">— Select personnel —</option>
-                {availablePersonnel.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.fullName} — {p.jobType.name} / {p.level.name} (
-                    {p.vendor.name})
-                  </option>
-                ))}
+                <option value="">— {t.project.selectPersonnel} —</option>
+                {availablePersonnel.map((p) => {
+                  const isOnProject = p.status === "ON_PROJECT";
+                  const activeProjects = (p as { assignments?: { project: { name: string } }[] }).assignments
+                    ?.map((a) => a.project.name).join(", ") ?? "";
+                  return (
+                    <option key={p.id} value={p.id}>
+                      {p.fullName} — {p.jobType.name} / {p.level.name} ({p.vendor.name})
+                      {isOnProject ? ` ⚠️ On: ${activeProjects}` : ""}
+                    </option>
+                  );
+                })}
               </select>
               {errors.personnelId && (
                 <p className="text-xs text-red-500 mt-1">
@@ -217,7 +224,7 @@ export default function AssignmentSheet({
           {/* Rate Suggestion Card */}
           {rateLoading && (
             <div className="rounded-lg border bg-gray-50 p-4 text-sm text-gray-400 text-center">
-              Loading rate data...
+              {t.rate.loadingRateData}
             </div>
           )}
           {!rateLoading && rateData && (
@@ -235,7 +242,7 @@ export default function AssignmentSheet({
           {/* Role in Project */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Role in Project
+              {t.project.roleInProject}
             </label>
             <input
               {...register("roleInProject")}
@@ -248,7 +255,7 @@ export default function AssignmentSheet({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Start Date <span className="text-red-500">*</span>
+                {t.project.startDate} <span className="text-red-500">*</span>
               </label>
               <input
                 {...register("startDate")}
@@ -263,7 +270,7 @@ export default function AssignmentSheet({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                End Date
+                {t.project.endDate}
               </label>
               <input
                 {...register("endDate")}
@@ -276,7 +283,7 @@ export default function AssignmentSheet({
           {/* Billing Rate Override */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Billing Rate Override (USD/mo)
+              {t.project.billingRateOverride}
             </label>
             <input
               {...register("billingRateOverride")}
@@ -284,7 +291,7 @@ export default function AssignmentSheet({
               min={0}
               step={0.01}
               className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Leave blank to use norm rate"
+              placeholder={t.project.leaveBlankNorm}
             />
           </div>
 
@@ -292,7 +299,7 @@ export default function AssignmentSheet({
           {billingRateOverride && billingRateOverride !== "" && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Billing Rate Note
+                {t.project.billingRateNote}
               </label>
               <input
                 {...register("billingRateNote")}
@@ -306,7 +313,7 @@ export default function AssignmentSheet({
           {isDULeader && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Vendor Rate Override (USD/mo)
+                {t.project.vendorRateOverride}
               </label>
               <input
                 {...register("vendorRateOverride")}
@@ -314,7 +321,7 @@ export default function AssignmentSheet({
                 min={0}
                 step={0.01}
                 className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Leave blank to use vendor actual rate"
+                placeholder={t.project.leaveBlankVendor}
               />
             </div>
           )}
@@ -323,12 +330,12 @@ export default function AssignmentSheet({
         {/* Footer */}
         <div className="px-6 py-4 border-t flex justify-end gap-3">
           <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
-            Cancel
+            {t.common.cancel}
           </Button>
           <Button onClick={handleSubmit(onSubmit)} disabled={isSubmitting}>
             {isSubmitting
-              ? isEdit ? "Saving..." : "Assigning..."
-              : isEdit ? "Save Changes" : "Assign"}
+              ? t.common.saving
+              : isEdit ? t.common.save : t.project.addAssignment}
           </Button>
         </div>
       </div>

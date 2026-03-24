@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { auth } from "@/lib/auth";
+import { getSessionWithRole } from "@/lib/auth-helpers";
 import { getRateNorms } from "@/actions/rate.actions";
 import { getFormLookups } from "@/actions/lookup.actions";
 import { getMarkets } from "@/actions/market.actions";
@@ -14,15 +14,12 @@ export const metadata: Metadata = {
 export default async function RatesPage() {
   const cookieStore = await cookies();
   const t = getTranslations(cookieStore.get("locale")?.value);
-  const [session, rateNorms, lookups, markets] = await Promise.all([
-    auth(),
+  const [{ isDULeader }, rateNorms, lookups, markets] = await Promise.all([
+    getSessionWithRole(),
     getRateNorms(),
     getFormLookups(),
     getMarkets(true),
   ]);
-
-  const isDULeader =
-    (session?.user as { role?: string })?.role === "DU_LEADER";
 
   return (
     <div>

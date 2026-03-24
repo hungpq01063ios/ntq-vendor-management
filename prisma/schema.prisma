@@ -39,6 +39,7 @@ model TechStack {
   name                 String                @unique
   order                Int                   @default(0)
   personnel            Personnel[]
+  projects             Project[]             // CR-11
   projectRateOverrides ProjectRateOverride[]
   rateAlerts           RateAlert[]
   rateNorms            RateNorm[]
@@ -59,6 +60,7 @@ model Domain {
   name                 String                @unique
   order                Int                   @default(0)
   personnel            Personnel[]
+  projects             Project[]             // CR-11
   projectRateOverrides ProjectRateOverride[]
   rateNorms            RateNorm[]
 }
@@ -145,22 +147,25 @@ model RateAlert {
 }
 
 model Vendor {
-  id               String       @id @default(cuid())
-  name             String
-  contactName      String
-  contactEmail     String
-  contactPhone     String?
-  companySize      Int?
-  languageStrength String[]
-  status           VendorStatus @default(ACTIVE)
-  startDate        DateTime?
-  notes            String?
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
-  createdById      String
-  marketCode       String       @default("ENGLISH")
-  personnel        Personnel[]
-  createdBy        User         @relation(fields: [createdById], references: [id])
+  id                   String       @id @default(cuid())
+  name                 String
+  contactName          String
+  contactEmail         String
+  contactPhone         String?
+  website              String?      // CR-02: Official contact channel
+  companySize          Int?
+  languageStrength     String[]
+  status               VendorStatus @default(ACTIVE)
+  startDate            DateTime?
+  notes                String?
+  performanceRating    Int?         // CR-03: 1-5 stars — overall performance
+  responseSpeedRating  Int?         // CR-03: 1-5 stars — response speed
+  performanceNote      String?      // CR-03: Performance notes
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+  createdById          String
+  personnel            Personnel[]
+  createdBy            User         @relation(fields: [createdById], references: [id])
 }
 
 model Personnel {
@@ -168,7 +173,8 @@ model Personnel {
   vendorId         String
   fullName         String
   jobTypeId        String
-  techStackId      String?         // Optional — BA/PM may not have a tech stack
+  techStackId      String?         // Optional — BA/PM may not have a tech stack (primary)
+  additionalTechStackIds String[]  @default([]) // CR-09: Up to 2 additional tech stacks
   levelId          String
   domainId         String?         // Optional — not all roles need domain
   englishLevel     EnglishLevel    @default(INTERMEDIATE)
@@ -217,12 +223,16 @@ model Project {
   endDate       DateTime?
   status        ProjectStatus         @default(ACTIVE)
   notes         String?
+  domainId      String?               // CR-11: Domain of project
+  techStackId   String?               // CR-11: Main tech stack of project
   createdAt     DateTime              @default(now())
   updatedAt     DateTime              @updatedAt
   createdById   String
   marketCode    String                @default("ENGLISH")
   assignments   Assignment[]
   createdBy     User                  @relation(fields: [createdById], references: [id])
+  domain        Domain?               @relation(fields: [domainId], references: [id])
+  techStack     TechStack?            @relation(fields: [techStackId], references: [id])
   rateOverrides ProjectRateOverride[]
 }
 

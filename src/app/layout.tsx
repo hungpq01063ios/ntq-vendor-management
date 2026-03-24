@@ -25,8 +25,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="vi">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+    <html lang="vi" suppressHydrationWarning>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning>
         <I18nProvider initialLocale="vi">
           {children}
           <Toaster richColors position="top-right" />

@@ -135,8 +135,19 @@ export interface Translations {
     startDate: string;
     languageStrength: string;
     languagePlaceholder: string;
+    languageSelectPlaceholder: string;
+    languageHelperText: string;
     backToVendors: string;
     createdAt: string;
+    // Vendor ratings (CR-16)
+    website: string;
+    performanceRating: string;
+    responseSpeedRating: string;
+    performanceNote: string;
+    qualityLabel: string;
+    responseLabel: string;
+    notRated: string;
+    ratingSection: string;
     // Vendor detail
     personnelSection: string;
     jobType: string;
@@ -162,8 +173,34 @@ export interface Translations {
     gender: string;
     yearsOfExp: string;
     vendorRateActual: string;
+    selectVendor: string;
+    selectOption: string;
+    techStackPrimary: string;
+    techStackPrimaryOptional: string;
+    notApplicable: string;
+    additionalTechStacks: string;
+    additionalTechStacksMax: string;
+    englishLevel: string;
+    leadershipLabel: string;
+    leadershipNote: string;
+    vendorRateUsd: string;
+    cvRequired: string;
+    cvRequiredError: string;
+    cvUrlPlaceholder: string;
+    cvLabelPlaceholder: string;
+    cvNotesPlaceholder: string;
+    markAsLatest: string;
+    noCvAdded: string;
+    createdWithCv: string;
+    // Projects column
+    projectsColumn: string;
     // Pipeline
     pipeline: string;
+    pipelineTotal: string;
+    pipelineEmpty: string;
+    pipelineFilterByProject: string;
+    pipelineAllProjects: string;
+    pipelineClearFilter: string;
     interviewStatus: string;
     // Detail
     backToPersonnel: string;
@@ -181,6 +218,9 @@ export interface Translations {
     cvAddedSuccess: string;
     cvUpdatedSuccess: string;
     cvDeletedSuccess: string;
+    // Deactivate dialog
+    deactivateTitle: string;
+    deactivateBody: string;
   };
 
   // ─── Project ──────────────────────────────────────────────────
@@ -195,14 +235,29 @@ export interface Translations {
     market: string;
     projectRate: string;
     noProjects: string;
+    created: string;
     // Assignments
     assignments: string;
     addAssignment: string;
     editAssignment: string;
     noAssignments: string;
+    noAssignmentsHint: string;
     billingRate: string;
+    billingRateOverride: string;
+    billingRateNote: string;
     vendorRate: string;
+    vendorRateOverride: string;
     margin: string;
+    roleInProject: string;
+    selectPersonnel: string;
+    leaveBlankNorm: string;
+    leaveBlankVendor: string;
+    rateOverrides: string;
+    // Assignment actions
+    assigning: string;
+    assignmentEnded: string;
+    ending: string;
+    end: string;
     // PnL card
     pnlTitle: string;
     totalRevenue: string;
@@ -216,6 +271,7 @@ export interface Translations {
     deletedSuccess: string;
     assignmentUpdated: string;
     assignmentDeleted: string;
+    activeMembers: string;
   };
 
   // ─── Rates ────────────────────────────────────────────────────
@@ -223,13 +279,36 @@ export interface Translations {
     title: string;
     configTitle: string;
     normMatrix: string;
+    addRateNorm: string;
+    editRateNorm: string;
+    deleteRateNorm: string;
+    deleteRateNormConfirm: string;
+    rateNormDeleted: string;
+    rateNormCreated: string;
+    rateNormUpdated: string;
     jobType: string;
     techStack: string;
     level: string;
     domain: string;
     market: string;
     rateNorm: string;
+    rateMin: string;
+    rateMax: string;
+    effectiveDate: string;
+    selectJobType: string;
+    selectTechStack: string;
+    selectLevel: string;
+    selectDomain: string;
     noRates: string;
+    noRatesForMarket: string;
+    addOne: string;
+    viewingMarket: string;
+    marketFactorLabel: string;
+    norms: string;
+    cloneFromEnglish: string;
+    cloning: string;
+    cloneSuccess: string;
+    cloneSkipped: string;
     overheadRate: string;
     driftThreshold: string;
     calculatorTitle: string;
@@ -242,11 +321,16 @@ export interface Translations {
     marketFactor: string;
     saveConfig: string;
     savedSuccess: string;
+    scanForDrift: string;
+    scanning: string;
+    // Loading
+    loadingRateData: string;
   };
 
   // ─── Alerts ───────────────────────────────────────────────────
   alert: {
     title: string;
+    all: string;
     pending: string;
     flagged: string;
     resolved: string;
@@ -254,10 +338,24 @@ export interface Translations {
     noAlerts: string;
     driftPct: string;
     flagForLeader: string;
+    flag: string;
     resolve: string;
     dismiss: string;
+    dismissAlert: string;
+    dismissNote: string;
+    dismissNotePlaceholder: string;
+    dismissNoteRequired: string;
+    dismissing: string;
+    alertDismissed: string;
     resolvedSuccess: string;
     dismissedSuccess: string;
     flaggedSuccess: string;
+    role: string;
+    normRate: string;
+    avgVendor: string;
+    drift: string;
+    triggered: string;
+    newAlertsCreated: string;
+    noNewDrift: string;
   };
 }

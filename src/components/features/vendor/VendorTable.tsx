@@ -5,9 +5,12 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { softDeleteVendor } from "@/actions/vendor.actions";
+import { importVendors } from "@/actions/import.actions";
 import { useTranslations } from "@/i18n";
+import { useTableSort, SortableHeader } from "@/hooks/useTableSort";
 import VendorSheet from "./VendorSheet";
-import type { Vendor, PersonnelStatus } from "@/types";
+import ImportDialog from "@/components/features/import/ImportDialog";
+import type { Vendor, PersonnelStatus, TechStack } from "@/types";
 
 type VendorRow = Vendor & {
   personnel: { id: string; status: PersonnelStatus }[];
@@ -22,16 +25,21 @@ const STATUS_COLORS: Record<string, string> = {
 interface VendorTableProps {
   vendors: VendorRow[];
   isDULeader: boolean;
+  techStacks: TechStack[];
 }
 
-export default function VendorTable({ vendors, isDULeader }: VendorTableProps) {
+export default function VendorTable({ vendors, isDULeader, techStacks }: VendorTableProps) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [techStackFilter, setTechStackFilter] = useState(""); // CR-01: programming language filter
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<VendorRow | null>(null);
   const [deleting, setDeleting] = useState(false);
   const { t } = useTranslations();
+
+
+
 
   const STATUS_LABELS: Record<string, string> = {
     ACTIVE: t.common.statusActive,
@@ -44,9 +52,26 @@ export default function VendorTable({ vendors, isDULeader }: VendorTableProps) {
       const matchSearch =
         !search || v.name.toLowerCase().includes(search.toLowerCase());
       const matchStatus = !statusFilter || v.status === statusFilter;
-      return matchSearch && matchStatus;
+      // CR-01: filter theo ngôn ngữ lập trình trong languageStrength
+      const matchTechStack =
+        !techStackFilter ||
+        v.languageStrength.some((l) =>
+          l.toLowerCase() === techStackFilter.toLowerCase()
+        );
+      return matchSearch && matchStatus && matchTechStack;
     });
-  }, [vendors, search, statusFilter]);
+  }, [vendors, search, statusFilter, techStackFilter]);
+
+  // CR-28: Table sorting
+  const sortableData = useMemo(() =>
+    filtered.map((v) => ({
+      ...v,
+      _headcount: v.personnel.length,
+      _rating: v.performanceRating ?? -1,
+    })),
+    [filtered]
+  );
+  const { sorted, sortKey, sortDir, toggleSort } = useTableSort(sortableData, "name", "asc");
 
   function openCreate() {
     setSelectedVendor(null);
@@ -92,18 +117,42 @@ export default function VendorTable({ vendors, isDULeader }: VendorTableProps) {
           <option value="INACTIVE">{t.common.statusInactive}</option>
           <option value="ON_HOLD">{t.common.statusOnHold}</option>
         </select>
-        <div className="ml-auto">
+        {/* CR-01: Programming language filter — chọn từ danh sách TechStack */}
+        <select
+          value={techStackFilter}
+          onChange={(e) => setTechStackFilter(e.target.value)}
+          className="border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">{t.vendor.languageStrength}</option>
+          {techStacks.map((ts) => (
+            <option key={ts.id} value={ts.name}>{ts.name}</option>
+          ))}
+        </select>
+        <div className="ml-auto flex items-center gap-2">
+          <ImportDialog
+            label="Import Excel"
+            templateUrl="/api/import/vendor-template"
+            importAction={importVendors}
+          />
           <Button onClick={openCreate}>{t.vendor.addVendor}</Button>
         </div>
       </div>
 
       {/* Active filter badges */}
-      {statusFilter && (
+      {(statusFilter || techStackFilter) && (
         <div className="flex gap-2 mb-3">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800">
-            {STATUS_LABELS[statusFilter] ?? statusFilter}
-            <button onClick={() => setStatusFilter("")} className="hover:text-blue-600">✕</button>
-          </span>
+          {statusFilter && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800">
+              {STATUS_LABELS[statusFilter] ?? statusFilter}
+              <button onClick={() => setStatusFilter("")} className="hover:text-blue-600">✕</button>
+            </span>
+          )}
+          {techStackFilter && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800">
+              {techStackFilter}
+              <button onClick={() => setTechStackFilter("")} className="hover:text-purple-600">✕</button>
+            </span>
+          )}
         </div>
       )}
 
@@ -112,22 +161,23 @@ export default function VendorTable({ vendors, isDULeader }: VendorTableProps) {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">{t.vendor.companyName}</th>
+              <SortableHeader label={t.vendor.companyName} sortKey="name" currentSortKey={sortKey} currentSortDir={sortDir} onToggle={toggleSort} />
               <th className="text-left px-4 py-3 font-medium text-gray-600">{t.vendor.contact}</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">{t.common.status}</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">{t.vendor.headcount}</th>
+              <SortableHeader label={t.common.status} sortKey="status" currentSortKey={sortKey} currentSortDir={sortDir} onToggle={toggleSort} />
+              <SortableHeader label={t.vendor.headcount} sortKey="_headcount" currentSortKey={sortKey} currentSortDir={sortDir} onToggle={toggleSort} />
+              <SortableHeader label={t.vendor.ratingSection} sortKey="_rating" currentSortKey={sortKey} currentSortDir={sortDir} onToggle={toggleSort} />
               <th className="text-left px-4 py-3 font-medium text-gray-600">{t.common.actions}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {filtered.length === 0 && (
+            {sorted.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
                   {t.vendor.noVendors}
                 </td>
               </tr>
             )}
-            {filtered.map((vendor) => (
+            {sorted.map((vendor) => (
               <tr key={vendor.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium text-gray-900">{vendor.name}</td>
                 <td className="px-4 py-3 text-gray-600">
@@ -143,6 +193,15 @@ export default function VendorTable({ vendors, isDULeader }: VendorTableProps) {
                 </td>
                 <td className="px-4 py-3 text-gray-600">
                   {vendor.personnel.length}
+                </td>
+                <td className="px-4 py-3 text-xs">
+                  {vendor.performanceRating != null ? (
+                    <span className="text-amber-500" title={`${vendor.performanceRating}/5`}>
+                      {"★".repeat(vendor.performanceRating)}{"☆".repeat(5 - vendor.performanceRating)}
+                    </span>
+                  ) : (
+                    <span className="text-gray-300">—</span>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
@@ -179,6 +238,7 @@ export default function VendorTable({ vendors, isDULeader }: VendorTableProps) {
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
         vendor={selectedVendor ?? undefined}
+        techStacks={techStacks}
       />
 
       {/* Delete Confirmation Dialog */}

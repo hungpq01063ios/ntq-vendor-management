@@ -107,16 +107,15 @@ export async function deleteMarket(id: string): Promise<ActionResult> {
     const market = await db.marketConfig.findUnique({ where: { id } });
     if (!market) return { success: false, error: "Market not found" };
 
-    const [vendorCount, projectCount, normCount] = await Promise.all([
-      db.vendor.count({ where: { marketCode: market.code } }),
+    const [projectCount, normCount] = await Promise.all([
       db.project.count({ where: { marketCode: market.code } }),
       db.rateNorm.count({ where: { marketCode: market.code } }),
     ]);
 
-    if (vendorCount + projectCount + normCount > 0) {
+    if (projectCount + normCount > 0) {
       return {
         success: false,
-        error: `Cannot delete: market is used by ${vendorCount} vendor(s), ${projectCount} project(s), ${normCount} rate norm(s). Deactivate instead.`,
+        error: `Cannot delete: market is used by ${projectCount} project(s), ${normCount} rate norm(s). Deactivate instead.`,
       };
     }
 

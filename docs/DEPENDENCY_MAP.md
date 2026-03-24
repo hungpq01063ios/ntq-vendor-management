@@ -2,44 +2,47 @@
 
 > 🤖 **Agent**: Đọc file này TRƯỚC khi đánh giá impact của bất kỳ code change nào.
 > Mỗi section = 1 domain concept. Files liệt kê = files bị ảnh hưởng khi thay đổi concept đó.
-> **Last updated**: 2026-03-18 (v1.3)
+> **Last updated**: 2026-03-24 (v1.5)
 
 ---
 
 ## Vendor (entity + UI)
 | Layer | File | Vai trò |
 |-------|------|---------|
-| Schema | `lib/validations.ts` | `VendorSchema` |
-| Action | `actions/vendor.actions.ts` | CRUD + soft delete |
-| Page | `app/(dashboard)/vendors/page.tsx` | List page |
-| Page | `app/(dashboard)/vendors/[id]/page.tsx` | Detail page |
-| UI | `components/features/vendor/VendorTable.tsx` | Table + filter + delete |
-| UI | `components/features/vendor/VendorSheet.tsx` | Create/Edit form |
+| Schema | `lib/validations.ts` | `VendorSchema` (không còn `marketCode` — đã xóa 2026-03-24) |
+| Action | `actions/vendor.actions.ts` | CRUD + soft delete (không có market filter) |
+| Action | `actions/import.actions.ts` | Import Vendor từ Excel (không có marketCode column) |
+| Page | `app/(dashboard)/vendors/page.tsx` | List page (không có getMarkets()) |
+| Page | `app/(dashboard)/vendors/[id]/page.tsx` | Detail page (không có markets prop) |
+| UI | `components/features/vendor/VendorTable.tsx` | Table + filter (không có markets prop) |
+| UI | `components/features/vendor/VendorSheet.tsx` | Create/Edit form (không có market dropdown) |
+| UI | `components/features/vendor/VendorDetailClient.tsx` | Detail (không hiển marketCode) |
 
 ## Personnel (entity + UI)
 | Layer | File | Vai trò |
 |-------|------|---------|
-| Schema | `lib/validations.ts` | `PersonnelSchema` |
-| Action | `actions/personnel.actions.ts` | CRUD |
+| Schema | `lib/validations.ts` | `PersonnelSchema` (additionalTechStackIds CR-09) |
+| Action | `actions/personnel.actions.ts` | CRUD + updateInterviewStatus (CR-06) |
 | Action | `actions/cv.actions.ts` | CV CRUD: add, update, delete, setLatest, getCVsByPersonnel |
 | Page | `app/(dashboard)/personnel/page.tsx` | List page |
 | Page | `app/(dashboard)/personnel/[id]/page.tsx` | Detail page (includes CV section) |
-| Page | `app/(dashboard)/pipeline/page.tsx` | Kanban view |
-| UI | `components/features/personnel/PersonnelTable.tsx` | Table + actions |
-| UI | `components/features/personnel/PersonnelSheet.tsx` | Create/Edit form (CV drafts in create mode) |
+| Page | `app/(dashboard)/pipeline/page.tsx` | Kanban view (server: fetch data) |
+| UI | `components/features/personnel/PersonnelTable.tsx` | Table + inline interview edit (CR-06) + projects col (CR-07) |
+| UI | `components/features/personnel/PersonnelSheet.tsx` | Create/Edit form (CV drafts, multi-techstack CR-09, CV required CR-08) |
 | UI | `components/features/personnel/PersonnelEditSection.tsx` | Inline edit |
 | UI | `components/features/personnel/PersonnelCVSection.tsx` | CV list + add/edit/delete/setLatest |
+| UI | `components/features/pipeline/PipelineClient.tsx` | Client-side kanban + project filter (CR-12) |
 
 ## Project (entity + UI)
 | Layer | File | Vai trò |
 |-------|------|---------|
-| Schema | `lib/validations.ts` | `ProjectSchema` |
+| Schema | `lib/validations.ts` | `ProjectSchema` (đã thêm domainId, techStackId CR-11) |
 | Action | `actions/project.actions.ts` | CRUD + soft delete |
-| Page | `app/(dashboard)/projects/page.tsx` | List page (uses market.actions) |
+| Page | `app/(dashboard)/projects/page.tsx` | List page (fetches markets, domains, techStacks) |
 | Page | `app/(dashboard)/projects/[id]/page.tsx` | Detail page |
 | Page | `app/(dashboard)/projects/[id]/rates/page.tsx` | Project rate overrides |
-| UI | `components/features/project/ProjectTable.tsx` | Table + delete |
-| UI | `components/features/project/ProjectSheet.tsx` | Create/Edit form |
+| UI | `components/features/project/ProjectTable.tsx` | Table + delete (passes domains/techStacks) |
+| UI | `components/features/project/ProjectSheet.tsx` | Create/Edit form (domain/techStack dropdowns CR-11) |
 
 ## Assignment (entity + UI)
 | Layer | File | Vai trò |
@@ -69,6 +72,11 @@
 | UI | `components/features/rate/RateSuggestionCard.tsx` | Rate suggestion on assignment |
 | UI | `components/features/rate/ProjectRateOverrideTable.tsx` | Project rate override list |
 | UI | `components/features/rate/RateOverrideSheet.tsx` | Override create/edit |
+
+> ⚠️ **Business Rule (2026-03-24):** Norm rate lookup dùng **`project.marketCode`** (không phải `vendor.marketCode`).
+> **Fallback chain (2026-03-24):** `exact → General domain → Generic stack + General` — tự động fallback khi không có exact norm.
+> `null` techStack → dùng "Generic" ID; `null` domain → dùng "General" ID trước khi fallback tiếp.
+> 4 files ảnh hưởng khi cần sửa rule: `assignment.actions`, `dashboard.actions`, `rate.actions`, `alert.actions`.
 
 ## Alert (drift alerts)
 | Layer | File | Vai trò |
@@ -121,5 +129,7 @@ Khi thay đổi các concept sau, cần check **NHIỀU domain**:
 | `SystemConfig` keys | validations.ts → rate.actions → GlobalConfigForm |
 | `MarketConfig` schema | validations.ts → market.actions → MarketConfigTable → RateCalculator |
 | `billingRate` field | assignment.actions → AssignmentSheet → RateSuggestionCard → dashboard.actions |
-| Prisma schema change | schema.prisma → run `prisma generate` → check ALL actions using affected model |
+| `additionalTechStackIds` | schema.prisma → validations.ts → PersonnelSheet → personnel.actions → PersonnelTable (display) |
+| `vendorRateActual` | PersonnelSheet (submit) → personnel.actions → PersonnelTable (display) → personnel/[id] (detail) → RateSuggestionCard |
+| Prisma schema change | schema.prisma → run `prisma generate` → xóa `.next` cache → check ALL actions using affected model |
 | Zod schema change | validations.ts → check ALL actions importing that schema → check ALL forms using it |

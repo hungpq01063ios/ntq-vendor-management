@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { auth } from "@/lib/auth";
+import { getSessionWithRole } from "@/lib/auth-helpers";
 import { getDashboardData } from "@/actions/dashboard.actions";
 import SummaryCards from "@/components/features/dashboard/SummaryCards";
 import RevenueByProject from "@/components/features/dashboard/RevenueByProject";
@@ -16,9 +16,10 @@ export const metadata: Metadata = {
 export default async function DashboardPage() {
   const cookieStore = await cookies();
   const t = getTranslations(cookieStore.get("locale")?.value);
-  const [session, data] = await Promise.all([auth(), getDashboardData()]);
-  const isDULeader =
-    (session?.user as { role?: string })?.role === "DU_LEADER";
+  const [{ session, isDULeader }, data] = await Promise.all([
+    getSessionWithRole(),
+    getDashboardData(),
+  ]);
 
   return (
     <div className="space-y-6">

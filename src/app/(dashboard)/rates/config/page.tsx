@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { auth } from "@/lib/auth";
+import { getSessionWithRole } from "@/lib/auth-helpers";
 import { redirect } from "next/navigation";
 import { getSystemConfigs } from "@/actions/rate.actions";
 import { getMarkets } from "@/actions/market.actions";
@@ -12,9 +12,7 @@ export const metadata: Metadata = {
 };
 
 export default async function RateConfigPage() {
-  const session = await auth();
-  const isDULeader =
-    (session?.user as { role?: string })?.role === "DU_LEADER";
+  const { isDULeader } = await getSessionWithRole();
 
   if (!isDULeader) redirect("/rates");
 

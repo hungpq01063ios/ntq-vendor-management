@@ -135,6 +135,16 @@ billingRate = memberOverride ?? projectOverride ?? rateNorm.rateNorm
 vendorRate  = assignmentOverride ?? personnel.vendorRateActual
 ```
 
+> ⚠️ **Business Rule (2026-03-24):** Norm rate tra cứu theo **`project.marketCode`** — KHÔNG phải `vendor.marketCode`.
+> Vendor **không có** field `marketCode` (đã xóa khỏi schema + UI).
+> **Fallback chain (exact → General domain → Generic+General):**
+> ```
+> 1. jobType | techStack | level | domain   | project.market  ← exact (incl. null→Generic/General mapping)
+> 2. jobType | techStack | level | General  | project.market  ← nếu domain không có norm riêng
+> 3. jobType | Generic   | level | General  | project.market  ← ultimate fallback
+> ```
+> `null` techStack → lookup "Generic"; `null` domain → lookup "General". Sửa 4 files nếu cần: `assignment.actions`, `dashboard.actions`, `rate.actions`, `alert.actions`.
+
 ## Rate Engine Formula
 
 ```typescript
