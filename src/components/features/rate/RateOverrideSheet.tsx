@@ -18,9 +18,9 @@ interface FormValues {
 interface OverrideData {
   id: string;
   jobTypeId: string;
-  techStackId: string; // stored as "" when not set
+  techStackId: string | null;
   levelId: string;
-  domainId: string;    // stored as "" when not set
+  domainId: string | null;
   customBillingRate: number;
   jobType: JobType;
   techStack: TechStack | null;
@@ -81,9 +81,9 @@ export default function RateOverrideSheet({
       if (override) {
         reset({
           jobTypeId: override.jobTypeId,
-          techStackId: override.techStackId,
+          techStackId: override.techStackId ?? "",
           levelId: override.levelId,
-          domainId: override.domainId,
+          domainId: override.domainId ?? "",
           customBillingRate: String(override.customBillingRate),
         });
       } else {
@@ -107,13 +107,17 @@ export default function RateOverrideSheet({
 
     setSubmitting(true);
     try {
-      await upsertProjectRateOverride(projectId, {
+      const result = await upsertProjectRateOverride(projectId, {
         jobTypeId: values.jobTypeId,
         techStackId: values.techStackId,
         levelId: values.levelId,
         domainId: values.domainId,
         customBillingRate: rate,
       });
+      if (!result.success) {
+        toast.error(result.error ?? "Failed to save override");
+        return; // keep modal open
+      }
       toast.success(isEdit ? "Override updated" : "Override created");
       onClose();
     } catch (err) {

@@ -257,22 +257,34 @@ export async function upsertProjectRateOverride(
 ): Promise<ActionResult<{ id: string }>> {
   try {
     const session = await requireAuth();
+    // Sanitize: empty string from form select → null (avoid FK violation)
+    const techStackId = data.techStackId || null;
+    const domainId = data.domainId || null;
     const override = await db.projectRateOverride.upsert({
       where: {
         projectId_jobTypeId_techStackId_levelId_domainId: {
           projectId,
           jobTypeId: data.jobTypeId,
-          techStackId: data.techStackId,
+          techStackId: techStackId,
           levelId: data.levelId,
-          domainId: data.domainId,
-        },
+          domainId: domainId,
+        } as Parameters<typeof db.projectRateOverride.upsert>[0]["where"]["projectId_jobTypeId_techStackId_levelId_domainId"],
       },
       update: {
         customBillingRate: data.customBillingRate,
         setById: session.user.id,
         setAt: new Date(),
       },
-      create: { projectId, ...data, setById: session.user.id },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      create: {
+        projectId,
+        jobTypeId: data.jobTypeId,
+        techStackId: techStackId as any,
+        levelId: data.levelId,
+        domainId: domainId as any,
+        customBillingRate: data.customBillingRate,
+        setById: session.user.id,
+      } as any,
     });
     revalidatePath(`/projects/${projectId}/rates`);
     revalidatePath(`/projects/${projectId}`);

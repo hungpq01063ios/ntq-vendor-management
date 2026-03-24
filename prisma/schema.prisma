@@ -113,17 +113,17 @@ model ProjectRateOverride {
   id                String    @id @default(cuid())
   projectId         String
   jobTypeId         String
-  techStackId       String
+  techStackId       String?
   levelId           String
-  domainId          String
+  domainId          String?
   customBillingRate Float
   setById           String
   setAt             DateTime  @default(now())
-  domain            Domain    @relation(fields: [domainId], references: [id])
+  domain            Domain?   @relation(fields: [domainId], references: [id])
   jobType           JobType   @relation(fields: [jobTypeId], references: [id])
   level             Level     @relation(fields: [levelId], references: [id])
   project           Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  techStack         TechStack @relation(fields: [techStackId], references: [id])
+  techStack         TechStack? @relation(fields: [techStackId], references: [id])
 
   @@unique([projectId, jobTypeId, techStackId, levelId, domainId])
 }
