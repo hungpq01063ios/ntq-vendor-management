@@ -47,6 +47,7 @@ export default async function ProjectRatesPage({
 
       <ProjectRateOverrideTable
         projectId={id}
+        projectMarketCode={project.marketCode}
         overrides={overrides}
         rateNorms={rateNorms}
         jobTypes={lookups.jobTypes}

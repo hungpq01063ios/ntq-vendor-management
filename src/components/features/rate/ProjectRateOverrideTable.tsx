@@ -24,6 +24,7 @@ interface Override {
 
 interface Props {
   projectId: string;
+  projectMarketCode: string;
   overrides: Override[];
   rateNorms: RateNorm[];
   jobTypes: JobType[];
@@ -42,6 +43,7 @@ function fmt(n: number) {
 
 export default function ProjectRateOverrideTable({
   projectId,
+  projectMarketCode,
   overrides,
   rateNorms,
   jobTypes,
@@ -55,12 +57,14 @@ export default function ProjectRateOverrideTable({
   const [deleting, setDeleting] = useState(false);
 
   function getNormRate(override: Override): number | null {
+    // Exact match: jobType + techStack + level + domain + project market code
     const norm = rateNorms.find(
       (n) =>
         n.jobTypeId === override.jobTypeId &&
         n.techStackId === override.techStackId &&
         n.levelId === override.levelId &&
-        n.domainId === override.domainId
+        n.domainId === override.domainId &&
+        n.marketCode === projectMarketCode
     );
     return norm?.rateNorm ?? null;
   }
