@@ -257,35 +257,45 @@ export async function upsertProjectRateOverride(
 ): Promise<ActionResult<{ id: string }>> {
   try {
     const session = await requireAuth();
-    // Sanitize: empty string from form select → null (avoid FK violation)
+    // Sanitize: empty string from form select "" → null ("Any" / not applicable)
     const techStackId = data.techStackId || null;
     const domainId = data.domainId || null;
-    const override = await db.projectRateOverride.upsert({
-      where: {
-        projectId_jobTypeId_techStackId_levelId_domainId: {
+
+    // Use raw query to check for existing override because Prisma ORM does not
+    // allow null comparisons on nullable FK fields in findFirst where clause
+    const existingRows = await db.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "ProjectRateOverride"
+      WHERE "projectId" = ${projectId}
+        AND "jobTypeId" = ${data.jobTypeId}
+        AND "levelId" = ${data.levelId}
+        AND (${techStackId}::text IS NULL AND "techStackId" IS NULL OR "techStackId" = ${techStackId})
+        AND (${domainId}::text IS NULL AND "domainId" IS NULL OR "domainId" = ${domainId})
+      LIMIT 1
+    `;
+    const existingId = existingRows[0]?.id ?? null;
+    let override;
+    if (existingId) {
+      override = await db.projectRateOverride.update({
+        where: { id: existingId },
+        data: {
+          customBillingRate: data.customBillingRate,
+          setById: session.user.id,
+          setAt: new Date(),
+        },
+      });
+    } else {
+      override = await db.projectRateOverride.create({
+        data: {
           projectId,
           jobTypeId: data.jobTypeId,
-          techStackId: techStackId,
+          techStackId,
           levelId: data.levelId,
-          domainId: domainId,
-        } as Parameters<typeof db.projectRateOverride.upsert>[0]["where"]["projectId_jobTypeId_techStackId_levelId_domainId"],
-      },
-      update: {
-        customBillingRate: data.customBillingRate,
-        setById: session.user.id,
-        setAt: new Date(),
-      },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      create: {
-        projectId,
-        jobTypeId: data.jobTypeId,
-        techStackId: techStackId as any,
-        levelId: data.levelId,
-        domainId: domainId as any,
-        customBillingRate: data.customBillingRate,
-        setById: session.user.id,
-      } as any,
-    });
+          domainId,
+          customBillingRate: data.customBillingRate,
+          setById: session.user.id,
+        },
+      });
+    }
     revalidatePath(`/projects/${projectId}/rates`);
     revalidatePath(`/projects/${projectId}`);
     return { success: true, data: { id: override.id } };

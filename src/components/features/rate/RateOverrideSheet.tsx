@@ -173,18 +173,20 @@ export default function RateOverrideSheet({
           {/* Tech Stack */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Tech Stack
-              <span className="text-gray-400 text-xs font-normal ml-1">(optional)</span>
+              Tech Stack <span className="text-red-500">*</span>
             </label>
             <select
-              {...register("techStackId")}
+              {...register("techStackId", { required: "Please select a tech stack" })}
               className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">— Any / Not applicable —</option>
+              <option value="">Select tech stack</option>
               {techStacks.map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
             </select>
+            {errors.techStackId && (
+              <p className="text-xs text-red-500 mt-1">{errors.techStackId.message}</p>
+            )}
           </div>
 
           {/* Level */}
@@ -209,18 +211,20 @@ export default function RateOverrideSheet({
           {/* Domain */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Domain
-              <span className="text-gray-400 text-xs font-normal ml-1">(optional)</span>
+              Domain <span className="text-red-500">*</span>
             </label>
             <select
-              {...register("domainId")}
+              {...register("domainId", { required: "Please select a domain" })}
               className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">— Any / Not applicable —</option>
+              <option value="">Select domain</option>
               {domains.map((d) => (
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
             </select>
+            {errors.domainId && (
+              <p className="text-xs text-red-500 mt-1">{errors.domainId.message}</p>
+            )}
           </div>
 
           {/* Norm Rate Reference */}
